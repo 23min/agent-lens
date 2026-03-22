@@ -66,8 +66,8 @@ const BASIC_SESSION = [
 ].join("\n");
 
 describe("parseClaudeSessionJsonl", () => {
-  it("parses a basic session with one exchange", () => {
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, null);
+  it("parses a basic session with one exchange", async () => {
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, null);
 
     expect(session.sessionId).toBe("sess-1");
     expect(session.source).toBe("claude");
@@ -75,28 +75,28 @@ describe("parseClaudeSessionJsonl", () => {
     expect(session.requests).toHaveLength(1);
   });
 
-  it("uses summary as title when provided", () => {
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, "My Summary");
+  it("uses summary as title when provided", async () => {
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, "My Summary");
     expect(session.title).toBe("My Summary");
   });
 
-  it("derives title from first user message when no summary", () => {
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, null);
+  it("derives title from first user message when no summary", async () => {
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, null);
     expect(session.title).toBe("Hello world");
   });
 
-  it("truncates long first-message titles to 80 characters", () => {
+  it("truncates long first-message titles to 80 characters", async () => {
     const longMessage = "A".repeat(100);
     const lines = [
       userLine(longMessage, "u1"),
       assistantLine({ uuid: "a1", parentUuid: "u1" }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(lines, null);
+    const session = await parseClaudeSessionJsonl(lines, null);
     expect(session.title).toBe("A".repeat(80) + "\u2026");
   });
 
-  it("skips system-injected tags when deriving title", () => {
+  it("skips system-injected tags when deriving title", async () => {
     const lines = [
       JSON.stringify({
         type: "user",
@@ -122,28 +122,28 @@ describe("parseClaudeSessionJsonl", () => {
       assistantLine({ uuid: "a1", parentUuid: "u1" }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(lines, null);
+    const session = await parseClaudeSessionJsonl(lines, null);
     expect(session.title).toBe("let's fix the bug in the parser");
   });
 
-  it("falls back to null title when no summary and no user messages", () => {
+  it("falls back to null title when no summary and no user messages", async () => {
     const lines = [
       assistantLine({ uuid: "a1", parentUuid: "u1" }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(lines, null);
+    const session = await parseClaudeSessionJsonl(lines, null);
     expect(session.title).toBeNull();
   });
 
-  it("sets creationDate from first message timestamp", () => {
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, null);
+  it("sets creationDate from first message timestamp", async () => {
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, null);
     expect(session.creationDate).toBe(
       new Date("2026-02-14T10:00:00.000Z").getTime(),
     );
   });
 
-  it("extracts request metadata", () => {
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, null);
+  it("extracts request metadata", async () => {
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, null);
     const req = session.requests[0];
 
     expect(req.requestId).toBe("a1");
@@ -155,15 +155,15 @@ describe("parseClaudeSessionJsonl", () => {
     );
   });
 
-  it("extracts token usage", () => {
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, null);
+  it("extracts token usage", async () => {
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, null);
     const req = session.requests[0];
 
     expect(req.usage.promptTokens).toBe(100);
     expect(req.usage.completionTokens).toBe(50);
   });
 
-  it("extracts tool calls from content blocks", () => {
+  it("extracts tool calls from content blocks", async () => {
     const content = [
       { type: "text", text: "Let me read that file." },
       { type: "tool_use", id: "toolu_1", name: "Read", input: {} },
@@ -175,7 +175,7 @@ describe("parseClaudeSessionJsonl", () => {
       assistantLine({ uuid: "a1", parentUuid: "u1", content }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(lines, null);
+    const session = await parseClaudeSessionJsonl(lines, null);
     expect(session.requests[0].toolCalls).toHaveLength(2);
     expect(session.requests[0].toolCalls[0]).toEqual({
       id: "toolu_1",
@@ -187,7 +187,7 @@ describe("parseClaudeSessionJsonl", () => {
     });
   });
 
-  it("aggregates multiple assistant messages into one request per user turn", () => {
+  it("aggregates multiple assistant messages into one request per user turn", async () => {
     // Claude often sends multiple assistant lines for a single response
     // (text, then tool_use, then more text after tool_result)
     // We treat each assistant line as a separate request
@@ -209,7 +209,7 @@ describe("parseClaudeSessionJsonl", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(lines, null);
+    const session = await parseClaudeSessionJsonl(lines, null);
     expect(session.requests).toHaveLength(2);
     expect(session.requests[0].usage.promptTokens).toBe(100);
     expect(session.requests[0].messageText).toBe("do something");
@@ -217,7 +217,7 @@ describe("parseClaudeSessionJsonl", () => {
     expect(session.requests[1].messageText).toBe("");
   });
 
-  it("skips sidechain (subagent) messages", () => {
+  it("skips sidechain (subagent) messages", async () => {
     const lines = [
       userLine("hello", "u1"),
       assistantLine({ uuid: "a1", parentUuid: "u1" }),
@@ -228,28 +228,28 @@ describe("parseClaudeSessionJsonl", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(lines, null);
+    const session = await parseClaudeSessionJsonl(lines, null);
     expect(session.requests).toHaveLength(1);
   });
 
-  it("skips progress and other non-message lines", () => {
+  it("skips progress and other non-message lines", async () => {
     const lines = [
       userLine("hi", "u1"),
       progressLine(),
       assistantLine({ uuid: "a1", parentUuid: "u1" }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(lines, null);
+    const session = await parseClaudeSessionJsonl(lines, null);
     expect(session.requests).toHaveLength(1);
   });
 
-  it("handles empty content", () => {
-    const session = parseClaudeSessionJsonl("", null);
+  it("handles empty content", async () => {
+    const session = await parseClaudeSessionJsonl("", null);
     expect(session.sessionId).toBe("unknown");
     expect(session.requests).toEqual([]);
   });
 
-  it("handles malformed lines gracefully", () => {
+  it("handles malformed lines gracefully", async () => {
     const lines = [
       "not json at all",
       userLine("hello", "u1"),
@@ -257,11 +257,11 @@ describe("parseClaudeSessionJsonl", () => {
       assistantLine({ uuid: "a1", parentUuid: "u1" }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(lines, null);
+    const session = await parseClaudeSessionJsonl(lines, null);
     expect(session.requests).toHaveLength(1);
   });
 
-  it("handles multiple user-assistant exchanges", () => {
+  it("handles multiple user-assistant exchanges", async () => {
     const lines = [
       userLine("first question", "u1"),
       assistantLine({
@@ -277,14 +277,14 @@ describe("parseClaudeSessionJsonl", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(lines, null);
+    const session = await parseClaudeSessionJsonl(lines, null);
     expect(session.requests).toHaveLength(2);
     expect(session.requests[0].messageText).toBe("first question");
     expect(session.requests[1].messageText).toBe("second question");
   });
 
-  it("sets empty skills when no Skill tool is used", () => {
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, null);
+  it("sets empty skills when no Skill tool is used", async () => {
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, null);
     const req = session.requests[0];
 
     expect(req.customAgentName).toBeNull();
@@ -292,7 +292,7 @@ describe("parseClaudeSessionJsonl", () => {
     expect(req.loadedSkills).toEqual([]);
   });
 
-  it("detects loaded skills from Skill tool_use blocks", () => {
+  it("detects loaded skills from Skill tool_use blocks", async () => {
     const lines = [
       userLine("fix bug 48", "u1"),
       assistantLine({
@@ -305,11 +305,11 @@ describe("parseClaudeSessionJsonl", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(lines, null);
+    const session = await parseClaudeSessionJsonl(lines, null);
     expect(session.requests[0].loadedSkills).toEqual(["bugfix"]);
   });
 
-  it("detects multiple skills in a single request", () => {
+  it("detects multiple skills in a single request", async () => {
     const lines = [
       userLine("help me test", "u1"),
       assistantLine({
@@ -322,11 +322,11 @@ describe("parseClaudeSessionJsonl", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(lines, null);
+    const session = await parseClaudeSessionJsonl(lines, null);
     expect(session.requests[0].loadedSkills).toEqual(["testing", "vscode-extensions"]);
   });
 
-  it("does not count non-Skill tool_use blocks as skills", () => {
+  it("does not count non-Skill tool_use blocks as skills", async () => {
     const lines = [
       userLine("read a file", "u1"),
       assistantLine({
@@ -339,19 +339,19 @@ describe("parseClaudeSessionJsonl", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(lines, null);
+    const session = await parseClaudeSessionJsonl(lines, null);
     expect(session.requests[0].loadedSkills).toEqual([]);
   });
 
-  it("sets timings to null (not available in Claude format)", () => {
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, null);
+  it("sets timings to null (not available in Claude format)", async () => {
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, null);
     const req = session.requests[0];
 
     expect(req.timings.firstProgress).toBeNull();
     expect(req.timings.totalElapsed).toBeNull();
   });
 
-  it("extracts cache token usage", () => {
+  it("extracts cache token usage", async () => {
     const lines = [
       userLine("hello", "u1"),
       assistantLine({
@@ -366,7 +366,7 @@ describe("parseClaudeSessionJsonl", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(lines, null);
+    const session = await parseClaudeSessionJsonl(lines, null);
     const req = session.requests[0];
 
     expect(req.usage.promptTokens).toBe(3);
@@ -375,7 +375,7 @@ describe("parseClaudeSessionJsonl", () => {
     expect(req.usage.cacheCreationTokens).toBe(2620);
   });
 
-  it("defaults cache tokens to 0 when not present", () => {
+  it("defaults cache tokens to 0 when not present", async () => {
     const lines = [
       userLine("hello", "u1"),
       assistantLine({
@@ -385,14 +385,14 @@ describe("parseClaudeSessionJsonl", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(lines, null);
+    const session = await parseClaudeSessionJsonl(lines, null);
     const req = session.requests[0];
 
     expect(req.usage.cacheReadTokens).toBe(0);
     expect(req.usage.cacheCreationTokens).toBe(0);
   });
 
-  it("handles string content gracefully", () => {
+  it("handles string content gracefully", async () => {
     const lines = [
       JSON.stringify({
         type: "user",
@@ -404,7 +404,7 @@ describe("parseClaudeSessionJsonl", () => {
       assistantLine({ uuid: "a1", parentUuid: "u1" }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(lines, null);
+    const session = await parseClaudeSessionJsonl(lines, null);
     expect(session.requests).toHaveLength(1);
     expect(session.requests[0].messageText).toBe("plain string content");
   });
@@ -532,7 +532,7 @@ function subagentAssistantLine(opts: {
 }
 
 describe("buildSubagentTypeMap", () => {
-  it("extracts agentId to subagentType mapping from Task tool calls", () => {
+  it("extracts agentId to subagentType mapping from Task tool calls", async () => {
     const lines = [
       userLine("do something", "u1"),
       taskToolUseLine({
@@ -554,7 +554,7 @@ describe("buildSubagentTypeMap", () => {
     expect(map.get("abc123")).toBe("Explore");
   });
 
-  it("extracts agentId to subagentType mapping from Agent tool calls (renamed from Task)", () => {
+  it("extracts agentId to subagentType mapping from Agent tool calls (renamed from Task)", async () => {
     const agentToolUseLine = JSON.stringify({
       type: "assistant",
       sessionId: "sess-1",
@@ -596,12 +596,12 @@ describe("buildSubagentTypeMap", () => {
     expect(map.get("abc123")).toBe("Explore");
   });
 
-  it("returns empty map when no Task tool calls", () => {
+  it("returns empty map when no Task tool calls", async () => {
     const map = buildSubagentTypeMap(BASIC_SESSION);
     expect(map.size).toBe(0);
   });
 
-  it("handles multiple Task invocations", () => {
+  it("handles multiple Task invocations", async () => {
     const lines = [
       userLine("start", "u1"),
       taskToolUseLine({
@@ -637,7 +637,7 @@ describe("buildSubagentTypeMap", () => {
     expect(map.get("def456")).toBe("Plan");
   });
 
-  it("handles missing agentId in tool_result gracefully", () => {
+  it("handles missing agentId in tool_result gracefully", async () => {
     const lines = [
       userLine("start", "u1"),
       taskToolUseLine({
@@ -672,7 +672,7 @@ describe("buildSubagentTypeMap", () => {
     expect(map.size).toBe(0);
   });
 
-  it("uses last agentId match when tool_result contains multiple references", () => {
+  it("uses last agentId match when tool_result contains multiple references", async () => {
     // Simulate a tool_result where the Explore agent's output mentions
     // other agent files, but the real agentId is appended at the end
     const toolResultWithMultipleAgentIds = JSON.stringify({
@@ -726,7 +726,7 @@ describe("buildSubagentTypeMap", () => {
     expect(map.has("a605be3")).toBe(false);
   });
 
-  it("handles agentIds with hyphens", () => {
+  it("handles agentIds with hyphens", async () => {
     const lines = [
       userLine("start", "u1"),
       taskToolUseLine({
@@ -750,7 +750,7 @@ describe("buildSubagentTypeMap", () => {
 });
 
 describe("subagent parsing", () => {
-  it("includes subagent requests when subagent input provided", () => {
+  it("includes subagent requests when subagent input provided", async () => {
     const mainContent = BASIC_SESSION;
     const subContent = [
       subagentUserLine({ uuid: "su1", agentId: "abc123" }),
@@ -761,14 +761,14 @@ describe("subagent parsing", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(mainContent, null, [
+    const session = await parseClaudeSessionJsonl(mainContent, null, [
       { content: subContent, agentId: "abc123", subagentType: "Explore" },
     ]);
 
     expect(session.requests).toHaveLength(2); // 1 main + 1 subagent
   });
 
-  it("sets isSubagent true on subagent requests", () => {
+  it("sets isSubagent true on subagent requests", async () => {
     const subContent = [
       subagentUserLine({ uuid: "su1", agentId: "abc123" }),
       subagentAssistantLine({
@@ -778,7 +778,7 @@ describe("subagent parsing", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, null, [
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, null, [
       { content: subContent, agentId: "abc123", subagentType: "Explore" },
     ]);
 
@@ -791,7 +791,7 @@ describe("subagent parsing", () => {
     expect(subReq!.isSubagent).toBe(true);
   });
 
-  it("sets customAgentName from subagentType", () => {
+  it("sets customAgentName from subagentType", async () => {
     const subContent = [
       subagentUserLine({ uuid: "su1", agentId: "abc123" }),
       subagentAssistantLine({
@@ -801,7 +801,7 @@ describe("subagent parsing", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, null, [
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, null, [
       { content: subContent, agentId: "abc123", subagentType: "Explore" },
     ]);
 
@@ -810,7 +810,7 @@ describe("subagent parsing", () => {
     expect(subReq!.agentId).toBe("claude-code:subagent");
   });
 
-  it("falls back to agentId when subagentType is null", () => {
+  it("falls back to agentId when subagentType is null", async () => {
     const subContent = [
       subagentUserLine({ uuid: "su1", agentId: "abc123" }),
       subagentAssistantLine({
@@ -820,7 +820,7 @@ describe("subagent parsing", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, null, [
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, null, [
       { content: subContent, agentId: "abc123", subagentType: null },
     ]);
 
@@ -828,7 +828,7 @@ describe("subagent parsing", () => {
     expect(subReq!.customAgentName).toBe("subagent");
   });
 
-  it("labels acompact-* agents as 'compact' when subagentType is null", () => {
+  it("labels acompact-* agents as 'compact' when subagentType is null", async () => {
     const subContent = [
       subagentUserLine({ uuid: "su1", agentId: "acompact-b8acf4" }),
       subagentAssistantLine({
@@ -838,7 +838,7 @@ describe("subagent parsing", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, null, [
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, null, [
       { content: subContent, agentId: "acompact-b8acf4", subagentType: null },
     ]);
 
@@ -846,7 +846,7 @@ describe("subagent parsing", () => {
     expect(subReq!.customAgentName).toBe("compact");
   });
 
-  it("interleaves subagent requests by timestamp", () => {
+  it("interleaves subagent requests by timestamp", async () => {
     const mainContent = [
       userLine("first", "u1"),
       assistantLine({
@@ -876,7 +876,7 @@ describe("subagent parsing", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(mainContent, null, [
+    const session = await parseClaudeSessionJsonl(mainContent, null, [
       { content: subContent, agentId: "abc123", subagentType: "Bash" },
     ]);
 
@@ -893,7 +893,7 @@ describe("subagent parsing", () => {
     );
   });
 
-  it("extracts tool calls from subagent content", () => {
+  it("extracts tool calls from subagent content", async () => {
     const subContent = [
       subagentUserLine({ uuid: "su1", agentId: "abc123" }),
       subagentAssistantLine({
@@ -907,7 +907,7 @@ describe("subagent parsing", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, null, [
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, null, [
       { content: subContent, agentId: "abc123", subagentType: "Explore" },
     ]);
 
@@ -916,7 +916,7 @@ describe("subagent parsing", () => {
     expect(subReq!.toolCalls[0]).toEqual({ id: "t1", name: "Read" });
   });
 
-  it("extracts token usage from subagent content", () => {
+  it("extracts token usage from subagent content", async () => {
     const subContent = [
       subagentUserLine({ uuid: "su1", agentId: "abc123" }),
       subagentAssistantLine({
@@ -932,7 +932,7 @@ describe("subagent parsing", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, null, [
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, null, [
       { content: subContent, agentId: "abc123", subagentType: "Explore" },
     ]);
 
@@ -943,7 +943,7 @@ describe("subagent parsing", () => {
     expect(subReq!.usage.cacheCreationTokens).toBe(1000);
   });
 
-  it("sets subagentId on subagent requests", () => {
+  it("sets subagentId on subagent requests", async () => {
     const subContent = [
       subagentUserLine({ uuid: "su1", agentId: "abc123" }),
       subagentAssistantLine({
@@ -953,7 +953,7 @@ describe("subagent parsing", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, null, [
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, null, [
       { content: subContent, agentId: "abc123", subagentType: "Explore" },
     ]);
 
@@ -961,7 +961,7 @@ describe("subagent parsing", () => {
     expect(subReq!.subagentId).toBe("abc123");
   });
 
-  it("sets parentRequestId linking subagent to spawning main request", () => {
+  it("sets parentRequestId linking subagent to spawning main request", async () => {
     // Main session: user asks → assistant spawns Agent tool → tool_result returns agentId
     const mainContent = [
       userLine("do something", "u1"),
@@ -996,7 +996,7 @@ describe("subagent parsing", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(mainContent, null, [
+    const session = await parseClaudeSessionJsonl(mainContent, null, [
       { content: subContent, agentId: "abc123", subagentType: "Explore" },
     ]);
 
@@ -1005,7 +1005,7 @@ describe("subagent parsing", () => {
     expect(subReq!.parentRequestId).toBe("a1");
   });
 
-  it("links multiple subagents to their respective parent requests", () => {
+  it("links multiple subagents to their respective parent requests", async () => {
     const mainContent = [
       userLine("start", "u1"),
       taskToolUseLine({
@@ -1068,7 +1068,7 @@ describe("subagent parsing", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(mainContent, null, [
+    const session = await parseClaudeSessionJsonl(mainContent, null, [
       { content: subContent1, agentId: "abc123", subagentType: "Explore" },
       { content: subContent2, agentId: "def456", subagentType: "Plan" },
     ]);
@@ -1084,7 +1084,7 @@ describe("subagent parsing", () => {
     expect(planReq!.parentRequestId).toBe("a2");
   });
 
-  it("detects preloaded skills from skill-format tags in subagent user messages", () => {
+  it("detects preloaded skills from skill-format tags in subagent user messages", async () => {
     const subContent = [
       // Task prompt
       JSON.stringify({
@@ -1136,7 +1136,7 @@ describe("subagent parsing", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, null, [
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, null, [
       { content: subContent, agentId: "abc123", subagentType: "Implementer" },
     ]);
 
@@ -1145,8 +1145,8 @@ describe("subagent parsing", () => {
     expect(subReq!.loadedSkills).toContain("testing");
   });
 
-  it("handles empty subagent content gracefully", () => {
-    const session = parseClaudeSessionJsonl(BASIC_SESSION, null, [
+  it("handles empty subagent content gracefully", async () => {
+    const session = await parseClaudeSessionJsonl(BASIC_SESSION, null, [
       { content: "", agentId: "abc123", subagentType: "Explore" },
     ]);
 
@@ -1155,7 +1155,7 @@ describe("subagent parsing", () => {
     expect(session.requests[0].isSubagent).toBeFalsy();
   });
 
-  it("still skips isSidechain lines in main session content", () => {
+  it("still skips isSidechain lines in main session content", async () => {
     const mainContent = [
       userLine("hello", "u1"),
       assistantLine({ uuid: "a1", parentUuid: "u1" }),
@@ -1166,7 +1166,7 @@ describe("subagent parsing", () => {
       }),
     ].join("\n");
 
-    const session = parseClaudeSessionJsonl(mainContent, null);
+    const session = await parseClaudeSessionJsonl(mainContent, null);
     expect(session.requests).toHaveLength(1);
   });
 });

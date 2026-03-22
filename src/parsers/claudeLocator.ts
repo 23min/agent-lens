@@ -3,6 +3,11 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { getLogger } from "../logger.js";
 
+/** Yield control to the event loop to prevent extension host unresponsiveness */
+function yieldEventLoop(): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+
 export interface ClaudeSessionEntry {
   sessionId: string;
   fullPath: string;
@@ -12,6 +17,8 @@ export interface ClaudeSessionEntry {
   modified: string;
   gitBranch: string;
   subagentPaths: string[];
+  projectName?: string;
+  isCurrentWorkspace?: boolean;
 }
 
 /**
@@ -19,7 +26,7 @@ export interface ClaudeSessionEntry {
  * `/Users/peterbru/project` → `-Users-peterbru-project`
  */
 export function encodeProjectPath(workspacePath: string): string {
-  return workspacePath.replace(/\/+$/, "").replace(/\//g, "-");
+  return workspacePath.replace(/[/\\]+$/, "").replace(/:/g, "-").replace(/[/\\]/g, "-");
 }
 
 /**
@@ -250,19 +257,20 @@ async function scanSubdirsByFolderName(
   return allSessions;
 }
 
-async function scanProjectDir(
+export async function scanProjectDir(
   projectDir: string,
 ): Promise<ClaudeSessionEntry[]> {
   const log = getLogger();
 
   // Try sessions-index.json first
   const indexPath = path.join(projectDir, "sessions-index.json");
+  const indexedIds = new Set<string>();
+  const verified: ClaudeSessionEntry[] = [];
   try {
     const raw = await fs.readFile(indexPath, "utf-8");
     const entries = parseSessionIndex(raw);
     if (entries.length > 0) {
       log.debug(`  Found ${entries.length} session(s) in index at ${projectDir}`);
-      const verified: ClaudeSessionEntry[] = [];
       for (const entry of entries) {
         try {
           await fs.access(entry.fullPath);
@@ -270,28 +278,26 @@ async function scanProjectDir(
             projectDir,
             entry.sessionId,
           );
+          indexedIds.add(entry.sessionId);
           verified.push(entry);
         } catch {
           log.warn(`  Session file missing: ${entry.fullPath}`);
         }
       }
-      return verified;
     }
   } catch {
     // No index, fall through to scan
   }
 
-  // Fallback: scan for JSONL files
+  // Always scan for JSONL files not covered by the index
   try {
     const files = await fs.readdir(projectDir);
     const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
-    if (jsonlFiles.length === 0) return [];
-
     log.debug(`  Found ${jsonlFiles.length} JSONL file(s) by scan in ${projectDir}`);
-    const entries: ClaudeSessionEntry[] = [];
     for (const f of jsonlFiles) {
       const sessionId = f.replace(/\.jsonl$/, "");
-      entries.push({
+      if (indexedIds.has(sessionId)) continue;
+      verified.push({
         sessionId,
         fullPath: path.join(projectDir, f),
         summary: null,
@@ -302,10 +308,107 @@ async function scanProjectDir(
         subagentPaths: await discoverSubagentFiles(projectDir, sessionId),
       });
     }
-    return entries;
   } catch {
+    // ignore scan errors
+  }
+
+  return verified;
+}
+
+/**
+ * Extract a human-readable project name from an encoded Claude project directory name.
+ *
+ * Claude encodes workspace paths by replacing `:`, `/`, and `\` with `-`.
+ * For example `C:\Users\info\Documents\git\agent-lens` becomes
+ * `C--Users-info-Documents-git-agent-lens`.
+ *
+ * Since project names can themselves contain dashes we use known parent directory
+ * markers to locate the boundary between the parent path and the project name.
+ * If no known marker is found the full encoded dir is returned unchanged.
+ */
+export function decodeProjectName(encodedDir: string): string {
+  const markers = [
+    "-git-",
+    "-src-",
+    "-repos-",
+    "-repo-",
+    "-code-",
+    "-projects-",
+    "-Projects-",
+    "-Documents-",
+    "-workspaces-",
+    "-workspace-",
+    "-repositories-",
+    "-dev-",
+    "-work-",
+    "-home-",
+  ];
+  let bestIdx = -1;
+  let bestLen = 0;
+  for (const m of markers) {
+    const idx = encodedDir.lastIndexOf(m);
+    if (idx > bestIdx) {
+      bestIdx = idx;
+      bestLen = m.length;
+    }
+  }
+  if (bestIdx >= 0) {
+    return encodedDir.slice(bestIdx + bestLen);
+  }
+  return encodedDir;
+}
+
+/**
+ * Discover Claude Code sessions across ALL projects in `~/.claude/projects/`.
+ *
+ * Each returned entry is annotated with:
+ * - `projectName` — a human-readable name derived from the encoded directory name
+ * - `isCurrentWorkspace` — true when the encoded directory matches the current workspace path
+ */
+export async function discoverAllClaudeProjects(
+  currentWorkspacePath: string | null,
+): Promise<ClaudeSessionEntry[]> {
+  const log = getLogger();
+  const claudeRoot = path.join(os.homedir(), ".claude", "projects");
+
+  let subdirs: string[];
+  try {
+    subdirs = await fs.readdir(claudeRoot);
+  } catch {
+    log.debug("Claude global discovery: cannot read projects root");
     return [];
   }
+
+  const currentVariants = currentWorkspacePath
+    ? new Set(encodedPathVariants(currentWorkspacePath))
+    : new Set<string>();
+
+  const allEntries: ClaudeSessionEntry[] = [];
+  let dirIndex = 0;
+  for (const subdir of subdirs) {
+    // Yield every 10 project directories to prevent blocking the event loop
+    if (dirIndex > 0 && dirIndex % 10 === 0) {
+      await yieldEventLoop();
+    }
+    dirIndex++;
+    const fullPath = path.join(claudeRoot, subdir);
+    try {
+      const stat = await fs.stat(fullPath);
+      if (!stat.isDirectory()) continue;
+    } catch {
+      continue;
+    }
+
+    const entries = await scanProjectDir(fullPath);
+    const projectName = decodeProjectName(subdir);
+    for (const entry of entries) {
+      entry.projectName = projectName;
+      entry.isCurrentWorkspace = currentVariants.has(subdir);
+      allEntries.push(entry);
+    }
+  }
+
+  return allEntries;
 }
 
 async function discoverSubagentFiles(

@@ -30,7 +30,7 @@ const MINIMAP_HEIGHT = 24;
 export function formatTokens(
   usage: SessionRequestLike["usage"],
 ): string {
-  return `Prompt: ${usage.promptTokens.toLocaleString()} | Completion: ${usage.completionTokens.toLocaleString()}`;
+  return `Prompt: ${usage.promptTokens.toLocaleString("en-US")} | Completion: ${usage.completionTokens.toLocaleString("en-US")}`;
 }
 
 export function formatCacheTokens(
@@ -40,8 +40,8 @@ export function formatCacheTokens(
   const read = usage.cacheReadTokens ?? 0;
   if (creation === 0 && read === 0) return null;
   const parts: string[] = [];
-  if (creation > 0) parts.push(`Cache create: ${creation.toLocaleString()}`);
-  if (read > 0) parts.push(`Cache read: ${read.toLocaleString()}`);
+  if (creation > 0) parts.push(`Cache create: ${creation.toLocaleString("en-US")}`);
+  if (read > 0) parts.push(`Cache read: ${read.toLocaleString("en-US")}`);
   return parts.join(" | ");
 }
 

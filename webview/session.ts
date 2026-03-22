@@ -11,6 +11,7 @@ declare function acquireVsCodeApi(): {
 const vscode = acquireVsCodeApi();
 
 type SourceFilter = "all" | "copilot" | "claude" | "codex";
+type ScopeFilter = "all-projects" | "current-project";
 
 interface ToolCallInfo {
   id: string;
@@ -57,6 +58,8 @@ interface Session {
   scope?: "workspace" | "fallback";
   matchedWorkspace?: string;
   environment?: string | null;
+  projectName?: string;
+  isCurrentWorkspace?: boolean;
 }
 
 @customElement("session-explorer")
@@ -375,6 +378,38 @@ class SessionExplorer extends LitElement {
       background: var(--vscode-button-background, #0e639c);
       color: var(--vscode-button-foreground, #fff);
     }
+    .scope-toggle {
+      display: inline-flex;
+      border: 1px solid var(--vscode-editorWidget-border, #454545);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 16px;
+      margin-left: 12px;
+    }
+    .project-group-header {
+      font-size: 13px;
+      font-weight: 600;
+      padding: 12px 0 6px;
+      opacity: 0.7;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .project-group-header .current-marker {
+      font-size: 10px;
+      font-weight: 500;
+      opacity: 0.6;
+    }
+    .project-badge {
+      font-size: 9px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: 500;
+      margin-right: 6px;
+      flex-shrink: 0;
+      background: rgba(130, 170, 196, 0.12);
+      color: var(--vscode-descriptionForeground, #8b8b8b);
+    }
     .provider-badge {
       font-size: 10px;
       padding: 1px 6px;
@@ -440,6 +475,7 @@ class SessionExplorer extends LitElement {
   @state() private sessions: Session[] = [];
   @state() private emptyCount = 0;
   @state() private activeFilter: SourceFilter = "all";
+  @state() private scopeFilter: ScopeFilter = "all-projects";
   @state() private selectedSession: Session | null = null;
   @state() private selectedRequest: SessionRequest | null = null;
   @state() private customAgentNames: string[] = [];
@@ -447,6 +483,7 @@ class SessionExplorer extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener("message", this.handleMessage);
+    vscode.postMessage({ type: "ready" });
   }
 
   disconnectedCallback(): void {
@@ -486,6 +523,19 @@ class SessionExplorer extends LitElement {
   private onFilterChange(filter: SourceFilter): void {
     this.activeFilter = filter;
     vscode.postMessage({ type: "filter-change", provider: filter });
+  }
+
+  private onScopeChange(scope: ScopeFilter): void {
+    this.scopeFilter = scope;
+    vscode.postMessage({ type: "scope-change", scope });
+  }
+
+  private renderProjectBadge(session: Session) {
+    if (!session.projectName) return null;
+    const label = session.isCurrentWorkspace
+      ? `${session.projectName} (current)`
+      : session.projectName;
+    return html`<span class="project-badge" title="Project: ${session.projectName}">${label}</span>`;
   }
 
   private formatDate(ts: number): string {
@@ -654,6 +704,11 @@ class SessionExplorer extends LitElement {
       (a, b) => b.creationDate - a.creationDate,
     );
 
+    // Check if we have project metadata (global discovery is active)
+    const hasProjects = sorted.some((s) => s.projectName);
+
+    const filtered = sorted;
+
     const filterOptions: { value: SourceFilter; label: string }[] = [
       { value: "all", label: "All" },
       { value: "copilot", label: "Copilot" },
@@ -661,62 +716,151 @@ class SessionExplorer extends LitElement {
       { value: "codex", label: "Codex" },
     ];
 
+    const scopeOptions: { value: ScopeFilter; label: string }[] = [
+      { value: "all-projects", label: "All Projects" },
+      { value: "current-project", label: "Current Project" },
+    ];
+
+    // Group sessions by project for display
+    const groups = hasProjects ? this.groupByProject(filtered) : null;
+
     return html`
-      <div class="filter-toggle">
-        ${filterOptions.map(
-          (opt) => html`
-            <button
-              class="filter-btn ${this.activeFilter === opt.value ? "active" : ""}"
-              @click="${() => this.onFilterChange(opt.value)}"
-            >
-              ${opt.label}
-            </button>
-          `,
-        )}
+      <div style="display: flex; align-items: center; flex-wrap: wrap;">
+        <div class="filter-toggle">
+          ${filterOptions.map(
+            (opt) => html`
+              <button
+                class="filter-btn ${this.activeFilter === opt.value ? "active" : ""}"
+                @click="${() => this.onFilterChange(opt.value)}"
+              >
+                ${opt.label}
+              </button>
+            `,
+          )}
+        </div>
+        ${hasProjects
+          ? html`
+              <div class="scope-toggle">
+                ${scopeOptions.map(
+                  (opt) => html`
+                    <button
+                      class="filter-btn ${this.scopeFilter === opt.value ? "active" : ""}"
+                      @click="${() => this.onScopeChange(opt.value)}"
+                    >
+                      ${opt.label}
+                    </button>
+                  `,
+                )}
+              </div>
+            `
+          : null}
       </div>
       <h1>Session Explorer</h1>
-      ${sorted.length === 0
+      ${filtered.length === 0
         ? html`<div class="empty-state">
             No sessions found. Sessions are auto-discovered from VS Code
             workspace storage.
           </div>`
-        : html`
-            <div class="session-list">
-              ${sorted.map(
-                (session) => html`
-                  <div
-                    class="session-item"
-                    @click="${() => {
-                      this.selectedSession = session;
-                      this.selectedRequest = null;
-                    }}"
-                  >
-                    <span class="provider-badge ${session.provider}">
-                      ${session.provider === "copilot" ? "Copilot" : session.provider === "claude" ? "Claude" : "Codex"}
-                    </span>
-                    ${this.renderEnvBadge(session)}
-                    ${this.renderRecoveredBadge(session)}
-                    ${this.renderAgentBadge(session)}
-                    ${this.renderSkillsBadge(session)}
-                    <span class="session-title">
-                      ${session.title ?? session.sessionId}
-                    </span>
-                    <span class="session-meta">
-                      ${session.requests.length} requests
-                    </span>
-                    <span class="session-meta">
-                      ${this.formatDate(session.creationDate)}
-                    </span>
-                  </div>
-                `,
-              )}
-            </div>
-            ${this.emptyCount > 0
-              ? html`<div class="empty-notice">
-                  ${this.emptyCount} empty session${this.emptyCount === 1 ? "" : "s"} hidden (0 requests)
-                </div>`
+        : groups
+          ? this.renderGroupedSessions(groups)
+          : html`
+              <div class="session-list">
+                ${filtered.map((session) => this.renderSessionItem(session))}
+              </div>
+            `}
+      ${this.emptyCount > 0
+        ? html`<div class="empty-notice">
+            ${this.emptyCount} empty session${this.emptyCount === 1 ? "" : "s"} hidden (0 requests)
+          </div>`
+        : null}
+    `;
+  }
+
+  private groupByProject(
+    sessions: Session[],
+  ): { name: string; isCurrent: boolean; sessions: Session[] }[] {
+    const map = new Map<string, { isCurrent: boolean; sessions: Session[] }>();
+    const ungrouped: Session[] = [];
+
+    for (const s of sessions) {
+      if (s.projectName) {
+        let group = map.get(s.projectName);
+        if (!group) {
+          group = { isCurrent: s.isCurrentWorkspace === true, sessions: [] };
+          map.set(s.projectName, group);
+        }
+        group.sessions.push(s);
+      } else {
+        ungrouped.push(s);
+      }
+    }
+
+    // Sort: current workspace first, then alphabetical
+    const groups = Array.from(map.entries())
+      .map(([name, g]) => ({ name, ...g }))
+      .sort((a, b) => {
+        if (a.isCurrent !== b.isCurrent) return a.isCurrent ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+
+    // Add ungrouped sessions as a catch-all group
+    if (ungrouped.length > 0) {
+      groups.push({ name: "Other", isCurrent: false, sessions: ungrouped });
+    }
+
+    return groups;
+  }
+
+  private renderGroupedSessions(
+    groups: { name: string; isCurrent: boolean; sessions: Session[] }[],
+  ) {
+    return html`
+      ${groups.map(
+        (group) => html`
+          <div class="project-group-header">
+            ${group.name}
+            ${group.isCurrent
+              ? html`<span class="current-marker">(current)</span>`
               : null}
-          `}
+            <span class="current-marker"
+              >${group.sessions.length} session${group.sessions.length === 1 ? "" : "s"}</span
+            >
+          </div>
+          <div class="session-list">
+            ${group.sessions.map((session) => this.renderSessionItem(session))}
+          </div>
+        `,
+      )}
+    `;
+  }
+
+  private renderSessionItem(session: Session) {
+    return html`
+      <div
+        class="session-item"
+        @click="${() => {
+          this.selectedSession = session;
+          this.selectedRequest = null;
+        }}"
+      >
+        <span class="provider-badge ${session.provider}">
+          ${session.provider === "copilot"
+            ? "Copilot"
+            : session.provider === "claude"
+              ? "Claude"
+              : "Codex"}
+        </span>
+        ${this.renderProjectBadge(session)} ${this.renderEnvBadge(session)}
+        ${this.renderRecoveredBadge(session)} ${this.renderAgentBadge(session)}
+        ${this.renderSkillsBadge(session)}
+        <span class="session-title">
+          ${session.title ?? session.sessionId}
+        </span>
+        <span class="session-meta"> ${session.requests.length} requests </span>
+        <span class="session-meta">
+          ${this.formatDate(session.creationDate)}
+        </span>
+      </div>
     `;
   }
 

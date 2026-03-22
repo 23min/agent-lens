@@ -26,10 +26,19 @@ let cachedAgents: Agent[] = [];
 let cachedSkills: Skill[] = [];
 let cachedSessions: Session[] = [];
 
+let refreshing = false;
+let refreshQueued = false;
+
 async function refresh(
   sessionCtx: SessionDiscoveryContext,
   treeProvider: AgentLensTreeProvider,
 ): Promise<void> {
+  if (refreshing) {
+    refreshQueued = true;
+    return;
+  }
+  refreshing = true;
+
   const log = getLogger();
   const start = Date.now();
   log.debug("Refresh started");
@@ -78,6 +87,12 @@ async function refresh(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log.error(`Refresh failed: ${msg}`);
+  } finally {
+    refreshing = false;
+    if (refreshQueued) {
+      refreshQueued = false;
+      void refresh(sessionCtx, treeProvider);
+    }
   }
 }
 
@@ -193,7 +208,7 @@ export function activate(context: vscode.ExtensionContext): void {
   let refreshTimer: ReturnType<typeof setTimeout> | undefined;
   function scheduleRefresh() {
     if (refreshTimer) clearTimeout(refreshTimer);
-    refreshTimer = setTimeout(() => refresh(sessionCtx, treeProvider), 500);
+    refreshTimer = setTimeout(() => refresh(sessionCtx, treeProvider), 2000);
   }
 
   const agentWatcher = vscode.workspace.createFileSystemWatcher(

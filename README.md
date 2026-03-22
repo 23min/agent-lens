@@ -38,7 +38,7 @@ Interactive DAG visualization of your agents, skills, and handoff connections. Z
 
 ### Session Explorer
 
-Replay individual sessions as a timeline. See each request's agent, model, tokens, tool calls, and timing. Spot agent switches and model changes. Sessions that used a custom agent or Copilot skills show compact badges at a glance.
+Replay individual sessions as a timeline. See each request's agent, model, tokens, tool calls, and timing. Spot agent switches and model changes. Sessions that used a custom agent or Copilot skills show compact badges at a glance. Browse sessions across all your projects or filter to just the current workspace.
 
 ### Cache Token Metrics
 
@@ -61,7 +61,7 @@ Session data stays local — Agent Lens only reads files already on your machine
 3. Look for the **Agent Lens** icon in the activity bar
 4. Click **Show Metrics Dashboard** or **Session Explorer** to explore your sessions
 
-Agent Lens automatically discovers sessions for your current workspace. No configuration needed in most cases.
+Agent Lens automatically discovers sessions across **all your projects** by default. No configuration needed in most cases.
 
 ### Devcontainers & Remote SSH
 
@@ -72,6 +72,7 @@ If your sessions live on a mounted host path, configure the directory manually:
 | `agentLens.sessionDir` | Path to Copilot chat session files (or a `workspaceStorage` root) |
 | `agentLens.claudeDir` | Path to Claude Code project files (e.g., a mounted `~/.claude/projects`) |
 | `agentLens.codexDir` | Path to Codex CLI sessions directory (e.g., a mounted `~/.codex/sessions`) |
+| `agentLens.discoverAllProjects` | Discover sessions from all projects (default: `true`). Disable to show only current workspace sessions. |
 
 Use the **Agent Lens: Container Setup Guide** command for step-by-step instructions.
 

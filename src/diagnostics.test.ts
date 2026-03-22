@@ -110,11 +110,13 @@ describe("collectDiagnostics", () => {
       const indexPath = projectDir + "/sessions-index.json";
 
       mockAccess.mockImplementation(async (p) => {
-        if (String(p) === projectDir || String(p) === indexPath) return undefined;
+        const ps = String(p).replace(/\\/g, "/");
+        if (ps === projectDir || ps === indexPath) return undefined;
         throw new Error("ENOENT");
       });
       mockReadFile.mockImplementation(async (p) => {
-        if (String(p) === indexPath) {
+        const ps = String(p).replace(/\\/g, "/");
+        if (ps === indexPath) {
           return JSON.stringify({
             entries: [
               { sessionId: "a", fullPath: "/a.jsonl" },
@@ -166,7 +168,7 @@ describe("collectDiagnostics", () => {
   describe("Codex diagnostics", () => {
     it("reports default path with recursive file count", async () => {
       mockAccess.mockImplementation(async (p) => {
-        if (String(p).includes(".codex/sessions")) return undefined;
+        if (String(p).replace(/\\/g, "/").includes(".codex/sessions")) return undefined;
         throw new Error("ENOENT");
       });
       mockReaddir.mockImplementation(async (p) => {

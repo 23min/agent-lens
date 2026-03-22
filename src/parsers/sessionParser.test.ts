@@ -65,8 +65,8 @@ const JSONL_FIXTURE = [
 ].join("\n");
 
 describe("parseSessionJsonl", () => {
-  it("reconstructs a session from JSONL lines", () => {
-    const session = parseSessionJsonl(JSONL_FIXTURE);
+  it("reconstructs a session from JSONL lines", async () => {
+    const session = await parseSessionJsonl(JSONL_FIXTURE);
 
     expect(session.sessionId).toBe("test-session-id");
     expect(session.title).toBe("Test Session Title");
@@ -76,8 +76,8 @@ describe("parseSessionJsonl", () => {
     expect(session.requests).toHaveLength(1);
   });
 
-  it("extracts request metadata", () => {
-    const session = parseSessionJsonl(JSONL_FIXTURE);
+  it("extracts request metadata", async () => {
+    const session = await parseSessionJsonl(JSONL_FIXTURE);
     const req = session.requests[0];
 
     expect(req.requestId).toBe("req-1");
@@ -87,8 +87,8 @@ describe("parseSessionJsonl", () => {
     expect(req.messageText).toBe("Hello world");
   });
 
-  it("extracts timings and usage", () => {
-    const session = parseSessionJsonl(JSONL_FIXTURE);
+  it("extracts timings and usage", async () => {
+    const session = await parseSessionJsonl(JSONL_FIXTURE);
     const req = session.requests[0];
 
     expect(req.timings.firstProgress).toBe(2000);
@@ -97,8 +97,8 @@ describe("parseSessionJsonl", () => {
     expect(req.usage.completionTokens).toBe(200);
   });
 
-  it("extracts tool calls", () => {
-    const session = parseSessionJsonl(JSONL_FIXTURE);
+  it("extracts tool calls", async () => {
+    const session = await parseSessionJsonl(JSONL_FIXTURE);
     const req = session.requests[0];
 
     expect(req.toolCalls).toHaveLength(2);
@@ -106,24 +106,24 @@ describe("parseSessionJsonl", () => {
     expect(req.toolCalls[1].name).toBe("list_dir");
   });
 
-  it("detects custom agent from modeInstructions", () => {
-    const session = parseSessionJsonl(JSONL_FIXTURE);
+  it("detects custom agent from modeInstructions", async () => {
+    const session = await parseSessionJsonl(JSONL_FIXTURE);
     expect(session.requests[0].customAgentName).toBe("Planner");
   });
 
-  it("detects available skills", () => {
-    const session = parseSessionJsonl(JSONL_FIXTURE);
+  it("detects available skills", async () => {
+    const session = await parseSessionJsonl(JSONL_FIXTURE);
     expect(session.requests[0].availableSkills).toHaveLength(1);
     expect(session.requests[0].availableSkills[0].name).toBe("testing");
   });
 
-  it("handles empty JSONL", () => {
-    const session = parseSessionJsonl("");
+  it("handles empty JSONL", async () => {
+    const session = await parseSessionJsonl("");
     expect(session.sessionId).toBe("unknown");
     expect(session.requests).toEqual([]);
   });
 
-  it("falls back to first user message as title when customTitle is absent", () => {
+  it("falls back to first user message as title when customTitle is absent", async () => {
     const lines = [
       JSON.stringify({
         kind: 0,
@@ -144,11 +144,11 @@ describe("parseSessionJsonl", () => {
       }),
     ].join("\n");
 
-    const session = parseSessionJsonl(lines);
+    const session = await parseSessionJsonl(lines);
     expect(session.title).toBe("Help me fix the login bug");
   });
 
-  it("truncates long fallback titles to 80 chars", () => {
+  it("truncates long fallback titles to 80 chars", async () => {
     const longMsg = "A".repeat(120);
     const lines = [
       JSON.stringify({
@@ -170,11 +170,11 @@ describe("parseSessionJsonl", () => {
       }),
     ].join("\n");
 
-    const session = parseSessionJsonl(lines);
+    const session = await parseSessionJsonl(lines);
     expect(session.title).toBe("A".repeat(80) + "\u2026");
   });
 
-  it("detects custom agent from inputState.mode in initial state", () => {
+  it("detects custom agent from inputState.mode in initial state", async () => {
     const lines = [
       JSON.stringify({
         kind: 0,
@@ -205,11 +205,11 @@ describe("parseSessionJsonl", () => {
       }),
     ].join("\n");
 
-    const session = parseSessionJsonl(lines);
+    const session = await parseSessionJsonl(lines);
     expect(session.requests[0].customAgentName).toBe("planner");
   });
 
-  it("tracks mode changes between requests", () => {
+  it("tracks mode changes between requests", async () => {
     const lines = [
       JSON.stringify({
         kind: 0,
@@ -284,17 +284,17 @@ describe("parseSessionJsonl", () => {
       }),
     ].join("\n");
 
-    const session = parseSessionJsonl(lines);
+    const session = await parseSessionJsonl(lines);
     expect(session.requests).toHaveLength(3);
     expect(session.requests[0].customAgentName).toBe("planner");
     expect(session.requests[1].customAgentName).toBe("architect");
     expect(session.requests[2].customAgentName).toBe("tester");
   });
 
-  it("falls back to modeInstructions when no inputState.mode", () => {
+  it("falls back to modeInstructions when no inputState.mode", async () => {
     // The original JSONL_FIXTURE has no inputState.mode but has
     // renderedUserMessage with modeInstructions — should still detect "Planner"
-    const session = parseSessionJsonl(JSONL_FIXTURE);
+    const session = await parseSessionJsonl(JSONL_FIXTURE);
     expect(session.requests[0].customAgentName).toBe("Planner");
   });
 });
@@ -487,8 +487,8 @@ const MULTI_SUBAGENT_FIXTURE = [
 ].join("\n");
 
 describe("parseSessionJsonl — runSubagent", () => {
-  it("extracts runSubagent with child tool calls", () => {
-    const session = parseSessionJsonl(SUBAGENT_FIXTURE);
+  it("extracts runSubagent with child tool calls", async () => {
+    const session = await parseSessionJsonl(SUBAGENT_FIXTURE);
     const req = session.requests[0];
 
     expect(req.toolCalls).toHaveLength(1);
@@ -501,15 +501,15 @@ describe("parseSessionJsonl — runSubagent", () => {
     expect(sa.childToolCalls![2].name).toBe("copilot_readFile");
   });
 
-  it("sets subagentDescription from response metadata", () => {
-    const session = parseSessionJsonl(SUBAGENT_FIXTURE);
+  it("sets subagentDescription from response metadata", async () => {
+    const session = await parseSessionJsonl(SUBAGENT_FIXTURE);
     const sa = session.requests[0].toolCalls[0];
 
     expect(sa.subagentDescription).toBe("Read all .github agent files");
   });
 
-  it("groups child tool calls by subAgentInvocationId", () => {
-    const session = parseSessionJsonl(MULTI_SUBAGENT_FIXTURE);
+  it("groups child tool calls by subAgentInvocationId", async () => {
+    const session = await parseSessionJsonl(MULTI_SUBAGENT_FIXTURE);
     const req = session.requests[0];
 
     expect(req.toolCalls).toHaveLength(2);
@@ -519,7 +519,7 @@ describe("parseSessionJsonl — runSubagent", () => {
     expect(req.toolCalls[1].subagentDescription).toBe("Read skill files");
   });
 
-  it("handles runSubagent with no children gracefully", () => {
+  it("handles runSubagent with no children gracefully", async () => {
     const fixture = [
       JSON.stringify({
         kind: 0,
@@ -561,7 +561,7 @@ describe("parseSessionJsonl — runSubagent", () => {
       }),
     ].join("\n");
 
-    const session = parseSessionJsonl(fixture);
+    const session = await parseSessionJsonl(fixture);
     const sa = session.requests[0].toolCalls[0];
     expect(sa.name).toBe("runSubagent");
     expect(sa.subagentDescription).toBe("Quick check");
@@ -735,8 +735,8 @@ const MCP_SUBAGENT_FIXTURE = [
 ].join("\n");
 
 describe("parseSessionJsonl — MCP tools", () => {
-  it("extracts mcpServer from response source field", () => {
-    const session = parseSessionJsonl(MCP_FIXTURE);
+  it("extracts mcpServer from response source field", async () => {
+    const session = await parseSessionJsonl(MCP_FIXTURE);
     const req = session.requests[0];
     const serena = req.toolCalls.find(
       (t) => t.name === "mcp_serena_search_for_pattern",
@@ -744,8 +744,8 @@ describe("parseSessionJsonl — MCP tools", () => {
     expect(serena?.mcpServer).toBe("FastMCP");
   });
 
-  it("sets mcpServer on all matching tools by name", () => {
-    const session = parseSessionJsonl(MCP_FIXTURE);
+  it("sets mcpServer on all matching tools by name", async () => {
+    const session = await parseSessionJsonl(MCP_FIXTURE);
     const req = session.requests[0];
     const gitkraken = req.toolCalls.find(
       (t) => t.name === "mcp_gitkraken_bun_git_status",
@@ -758,15 +758,15 @@ describe("parseSessionJsonl — MCP tools", () => {
     expect(findSymbol?.mcpServer).toBe("FastMCP");
   });
 
-  it("does not set mcpServer on built-in tools", () => {
-    const session = parseSessionJsonl(MCP_FIXTURE);
+  it("does not set mcpServer on built-in tools", async () => {
+    const session = await parseSessionJsonl(MCP_FIXTURE);
     const req = session.requests[0];
     const readFile = req.toolCalls.find((t) => t.name === "read_file");
     expect(readFile?.mcpServer).toBeUndefined();
   });
 
-  it("sets mcpServer on subagent child tool calls", () => {
-    const session = parseSessionJsonl(MCP_SUBAGENT_FIXTURE);
+  it("sets mcpServer on subagent child tool calls", async () => {
+    const session = await parseSessionJsonl(MCP_SUBAGENT_FIXTURE);
     const req = session.requests[0];
     const sa = req.toolCalls.find((t) => t.name === "runSubagent");
     expect(sa?.childToolCalls).toHaveLength(2);
@@ -830,7 +830,7 @@ const CHATREPLAY_FIXTURE = JSON.stringify({
 });
 
 describe("parseChatReplay", () => {
-  it("parses a chatreplay export", () => {
+  it("parses a chatreplay export", async () => {
     const session = parseChatReplay(CHATREPLAY_FIXTURE);
 
     expect(session.source).toBe("chatreplay");
@@ -838,7 +838,7 @@ describe("parseChatReplay", () => {
     expect(session.requests).toHaveLength(1);
   });
 
-  it("extracts request data from chatreplay", () => {
+  it("extracts request data from chatreplay", async () => {
     const session = parseChatReplay(CHATREPLAY_FIXTURE);
     const req = session.requests[0];
 
@@ -850,12 +850,12 @@ describe("parseChatReplay", () => {
     expect(req.usage.completionTokens).toBe(300);
   });
 
-  it("detects custom agent from chatreplay", () => {
+  it("detects custom agent from chatreplay", async () => {
     const session = parseChatReplay(CHATREPLAY_FIXTURE);
     expect(session.requests[0].customAgentName).toBe("Reviewer");
   });
 
-  it("detects loaded skills from tool calls", () => {
+  it("detects loaded skills from tool calls", async () => {
     const session = parseChatReplay(CHATREPLAY_FIXTURE);
     expect(session.requests[0].loadedSkills).toContain("testing");
   });

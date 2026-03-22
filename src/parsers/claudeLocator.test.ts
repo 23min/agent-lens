@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { encodeProjectPath, encodedPathVariants, parseSessionIndex } from "./claudeLocator.js";
+import { encodeProjectPath, encodedPathVariants, parseSessionIndex, decodeProjectName } from "./claudeLocator.js";
 
 describe("encodeProjectPath", () => {
   it("replaces slashes with dashes", () => {
@@ -16,6 +16,20 @@ describe("encodeProjectPath", () => {
     expect(encodeProjectPath("/Users/peterbru/project/")).toBe(
       "-Users-peterbru-project",
     );
+  });
+
+  it("handles Windows backslash paths", () => {
+    expect(encodeProjectPath("C:\\Users\\info\\project")).toBe(
+      "C--Users-info-project",
+    );
+  });
+
+  it("handles Windows drive letter colons", () => {
+    expect(encodeProjectPath("C:\\Users\\foo")).toBe("C--Users-foo");
+  });
+
+  it("strips trailing backslash", () => {
+    expect(encodeProjectPath("C:\\Users\\foo\\")).toBe("C--Users-foo");
   });
 });
 
@@ -114,5 +128,33 @@ describe("parseSessionIndex", () => {
 
     const entries = parseSessionIndex(raw);
     expect(entries[0].subagentPaths).toEqual([]);
+  });
+});
+
+describe("decodeProjectName", () => {
+  it("extracts project name after -git-", () => {
+    expect(decodeProjectName("C--Users-info-Documents-git-agent-lens")).toBe("agent-lens");
+  });
+
+  it("extracts project name after -workspaces-", () => {
+    expect(decodeProjectName("-workspaces-foo")).toBe("foo");
+  });
+
+  it("handles project with dashes after known parent", () => {
+    expect(decodeProjectName("C--Users-info-Documents-git-pi-zero-hw-management")).toBe(
+      "pi-zero-hw-management",
+    );
+  });
+
+  it("extracts after -src-", () => {
+    expect(decodeProjectName("-home-user-src-my-project")).toBe("my-project");
+  });
+
+  it("extracts after -Documents-", () => {
+    expect(decodeProjectName("-Users-foo-Documents-cool-app")).toBe("cool-app");
+  });
+
+  it("returns full encoded dir when no known parent found", () => {
+    expect(decodeProjectName("-some-unusual-path-project")).toBe("-some-unusual-path-project");
   });
 });

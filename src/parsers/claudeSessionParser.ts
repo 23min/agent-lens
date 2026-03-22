@@ -162,11 +162,11 @@ function extractToolResultText(block: ContentBlock): string {
  * When `subagents` is provided, their assistant messages are parsed
  * and interleaved into the timeline by timestamp.
  */
-export function parseClaudeSessionJsonl(
+export async function parseClaudeSessionJsonl(
   content: string,
   summary: string | null,
   subagents?: SubagentInput[],
-): Session {
+): Promise<Session> {
   if (!content.trim()) {
     return {
       sessionId: "unknown",
@@ -186,10 +186,15 @@ export function parseClaudeSessionJsonl(
   let firstUserText: string | null = null;
   const requests: SessionRequest[] = [];
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    // Yield every 500 lines to prevent blocking the event loop
+    if (i > 0 && i % 500 === 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+
     let parsed: ClaudeLine;
     try {
-      parsed = JSON.parse(line);
+      parsed = JSON.parse(lines[i]);
     } catch {
       continue;
     }

@@ -45,7 +45,7 @@ function appendToArray(obj: Record<string, unknown>, path: (string | number)[], 
   }
 }
 
-export function parseSessionJsonl(content: string): Session {
+export async function parseSessionJsonl(content: string): Promise<Session> {
   if (!content.trim()) {
     return {
       sessionId: "unknown",
@@ -67,10 +67,15 @@ export function parseSessionJsonl(content: string): Session {
   let currentAgentName: string | null = null;
   const agentNameByRequest: (string | null)[] = [];
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    // Yield every 500 lines to prevent blocking the event loop
+    if (i > 0 && i % 500 === 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+
     let parsed: JsonlLine;
     try {
-      parsed = JSON.parse(line);
+      parsed = JSON.parse(lines[i]);
     } catch {
       continue;
     }
@@ -102,7 +107,7 @@ export function parseSessionJsonl(content: string): Session {
       case 2:
         if (parsed.k && Array.isArray(parsed.v)) {
           if (parsed.k.length === 1 && parsed.k[0] === "requests") {
-            for (let i = 0; i < parsed.v.length; i++) {
+            for (let j = 0; j < parsed.v.length; j++) {
               agentNameByRequest.push(currentAgentName);
             }
           }

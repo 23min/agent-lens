@@ -7,7 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Cross-project session discovery: browse sessions from **all** Claude and Copilot projects — not just the current workspace. Sessions grouped by project name with "(current)" marker for the active workspace.
+- `agentLens.discoverAllProjects` setting (default: `true`) — toggle between all-projects and current-workspace-only discovery
+- Session Explorer: scope toggle to switch between "All Projects" and "Current Project" views
+- Session Explorer: project name badges and grouped section headers when viewing all projects
+- Claude locator: `decodeProjectName()` extracts human-readable project names from encoded directory paths
+- Claude locator: `discoverAllClaudeProjects()` scans all subdirectories in `~/.claude/projects/`
+- Copilot provider: `scanAllWorkspaceStorageDirs()` scans all workspace storage hash directories for global discovery
+
 ### Fixed
+- Extension host crash (`UNRESPONSIVE extension host`) on large Copilot session files (e.g. 75 MB). Two-part fix: (1) session files larger than 15 MB are now skipped with a debug log entry, preventing the event loop from being blocked by monster files; (2) `parseSessionJsonl` and `parseClaudeSessionJsonl` are now async and yield the event loop every 500 lines, preventing medium-sized files from blocking for multiple seconds.
+- Session Explorer empty on first open — webview now signals readiness before data is pushed, fixing a race condition
+- Double scope filtering with inconsistent logic — scope filter now applied server-side only with strict `=== true` check
+- Claude session cache: subagent file changes now invalidate the cache (previously only main session file mtime was checked)
+- Global mode: custom `claudeDir` is now watched for changes (previously only `~/.claude/projects/` was watched)
+- `discoverAllProjects` setting description narrowed to reflect that Codex sessions are always discovered
 - Session Timeline: custom agents on the main track (not spawned as subagents) now correctly render in teal instead of the default main color
 
 ## [0.1.1] - 2026-03-02

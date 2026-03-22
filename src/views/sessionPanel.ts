@@ -9,6 +9,7 @@ export class SessionPanel {
   private disposed = false;
 
   private currentFilter: SourceFilter = "all";
+  private currentScope: "all-projects" | "current-project" = "all-projects";
   private cachedSessions: Session[] = [];
   private customAgentNames: string[] = [];
 
@@ -24,8 +25,15 @@ export class SessionPanel {
     });
 
     this.panel.webview.onDidReceiveMessage((msg) => {
+      if (msg.type === "ready") {
+        this.pushFilteredSessions();
+      }
       if (msg.type === "filter-change") {
         this.currentFilter = msg.provider;
+        this.pushFilteredSessions();
+      }
+      if (msg.type === "scope-change") {
+        this.currentScope = msg.scope;
         this.pushFilteredSessions();
       }
     });
@@ -72,14 +80,17 @@ export class SessionPanel {
   }
 
   private pushFilteredSessions(): void {
-    const byProvider =
+    let filtered =
       this.currentFilter === "all"
         ? this.cachedSessions
         : this.cachedSessions.filter(
             (s) => s.provider === this.currentFilter,
           );
-    const nonEmpty = byProvider.filter((s) => s.requests.length > 0);
-    const emptyCount = byProvider.length - nonEmpty.length;
+    if (this.currentScope === "current-project") {
+      filtered = filtered.filter((s) => s.isCurrentWorkspace === true);
+    }
+    const nonEmpty = filtered.filter((s) => s.requests.length > 0);
+    const emptyCount = filtered.length - nonEmpty.length;
     this.panel.webview.postMessage({
       type: "update-sessions",
       sessions: nonEmpty,

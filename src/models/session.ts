@@ -51,4 +51,8 @@ export interface Session {
   matchedWorkspace?: string;
   /** vscode.env.remoteName at the time of discovery, e.g. "ssh-remote", "dev-container", null for local */
   environment?: string | null;
+  /** Human-readable project name, e.g. "agent-lens", "pi-zero-hw-management" */
+  projectName?: string;
+  /** true when the session belongs to the currently open VS Code workspace */
+  isCurrentWorkspace?: boolean;
 }

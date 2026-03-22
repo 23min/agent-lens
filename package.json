@@ -2,7 +2,7 @@
   "name": "agent-lens",
   "displayName": "Agent Lens",
   "description": "Visualize your AI coding agents, skills, and handoffs as an interactive graph. Parses chat sessions to surface usage metrics.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "Proliminal",
   "license": "MIT",
   "icon": "assets/icon_128.png",
@@ -92,6 +92,11 @@
           "default": "",
           "scope": "machine-overridable",
           "markdownDescription": "Path to OpenAI Codex CLI sessions directory. Useful in devcontainers — mount the host's `~/.codex/sessions` and point this setting to the mount path. Respects `CODEX_HOME` environment variable as fallback."
+        },
+        "agentLens.discoverAllProjects": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Discover sessions from **all** projects across Claude and Copilot — not just the current workspace. Disable to show only sessions for the open workspace. Codex sessions are always discovered from the default location."
         }
       }
     },

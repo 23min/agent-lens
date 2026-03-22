@@ -7,6 +7,7 @@ vi.mock("node:fs/promises", () => ({
   readdir: vi.fn(),
   readFile: vi.fn(),
   access: vi.fn(),
+  stat: vi.fn(),
 }));
 
 vi.mock("vscode", () => ({
@@ -23,6 +24,7 @@ vi.mock("vscode", () => ({
 
 const mockReaddir = vi.mocked(fs.readdir);
 const mockReadFile = vi.mocked(fs.readFile);
+const mockStat = vi.mocked(fs.stat);
 
 // We test the internal helpers through their effects on the public
 // discoverSessions() method, using a minimal fake ExtensionContext.
@@ -67,10 +69,18 @@ function minimalSession(id: string) {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({ get: vi.fn().mockReturnValue(null) } as any);
+  vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+    get: vi.fn((key: string, defaultVal?: unknown) => {
+      if (key === "discoverAllProjects") return false;
+      return defaultVal ?? null;
+    }),
+  } as any);
   vi.mocked(vscode.window.showInformationMessage).mockResolvedValue(undefined as any);
   mockReadFile.mockRejectedValue(new Error("ENOENT"));
   mockReaddir.mockRejectedValue(Object.assign(new Error("ENOENT"), { code: "ENOENT" }));
+  // Default: every stat returns a unique mtime so cache always misses
+  let mtimeCounter = 0;
+  mockStat.mockImplementation(async () => ({ mtimeMs: ++mtimeCounter }) as any);
 });
 
 describe("CopilotSessionProvider — primary hash (strategy 2)", () => {
@@ -128,18 +138,18 @@ describe("CopilotSessionProvider — stale hash fallback (strategy 3)", () => {
     const currentChatDir = path.join(STORAGE_ROOT, CURRENT_HASH, "chatSessions");
 
     mockReaddir.mockImplementation(async (p) => {
-      const ps = String(p);
-      if (ps === currentChatDir) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      const ps = String(p).replace(/\\/g, "/");
+      if (ps === currentChatDir.replace(/\\/g, "/")) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
       if (ps === STORAGE_ROOT) return [CURRENT_HASH, STALE_HASH, "unrelated-hash"] as any;
-      if (ps === staleChatDir) return ["session-xyz.jsonl"] as any;
+      if (ps === staleChatDir.replace(/\\/g, "/")) return ["session-xyz.jsonl"] as any;
       throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     });
     mockReadFile.mockImplementation(async (p) => {
-      const ps = String(p);
-      if (ps === path.join(staleHashDir, "workspace.json")) {
+      const ps = String(p).replace(/\\/g, "/");
+      if (ps === path.join(staleHashDir, "workspace.json").replace(/\\/g, "/")) {
         return JSON.stringify({ folder: WORKSPACE_URI });
       }
-      if (ps === path.join(STORAGE_ROOT, CURRENT_HASH, "workspace.json")) {
+      if (ps === path.join(STORAGE_ROOT, CURRENT_HASH, "workspace.json").replace(/\\/g, "/")) {
         return JSON.stringify({ folder: WORKSPACE_URI });
       }
       if (ps.includes("unrelated-hash") && ps.endsWith("workspace.json")) {
@@ -164,10 +174,10 @@ describe("CopilotSessionProvider — stale hash fallback (strategy 3)", () => {
     const currentChatDir = path.join(STORAGE_ROOT, CURRENT_HASH, "chatSessions");
 
     mockReaddir.mockImplementation(async (p) => {
-      const ps = String(p);
-      if (ps === currentChatDir) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      const ps = String(p).replace(/\\/g, "/");
+      if (ps === currentChatDir.replace(/\\/g, "/")) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
       if (ps === STORAGE_ROOT) return [CURRENT_HASH, STALE_HASH] as any;
-      if (ps === staleChatDir) return ["session-xyz.jsonl"] as any;
+      if (ps === staleChatDir.replace(/\\/g, "/")) return ["session-xyz.jsonl"] as any;
       throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     });
     mockReadFile.mockImplementation(async (p) => {
@@ -194,11 +204,11 @@ describe("CopilotSessionProvider — stale hash fallback (strategy 3)", () => {
     const currentChatDir = path.join(STORAGE_ROOT, CURRENT_HASH, "chatSessions");
 
     mockReaddir.mockImplementation(async (p) => {
-      const ps = String(p);
-      if (ps === currentChatDir) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      const ps = String(p).replace(/\\/g, "/");
+      if (ps === currentChatDir.replace(/\\/g, "/")) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
       if (ps === STORAGE_ROOT) return [CURRENT_HASH, STALE_HASH, staleHash2] as any;
-      if (ps === stale1ChatDir) return ["session-dup.jsonl", "session-unique1.jsonl"] as any;
-      if (ps === stale2ChatDir) return ["session-dup.jsonl", "session-unique2.jsonl"] as any;
+      if (ps === stale1ChatDir.replace(/\\/g, "/")) return ["session-dup.jsonl", "session-unique1.jsonl"] as any;
+      if (ps === stale2ChatDir.replace(/\\/g, "/")) return ["session-dup.jsonl", "session-unique2.jsonl"] as any;
       throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     });
     mockReadFile.mockImplementation(async (p) => {
@@ -347,7 +357,11 @@ describe("CopilotSessionProvider — accumulative discovery", () => {
     const currentChatDir = path.join(STORAGE_ROOT, CURRENT_HASH, "chatSessions");
 
     vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
-      get: vi.fn().mockReturnValue(configDir),
+      get: vi.fn((key: string, defaultVal?: unknown) => {
+        if (key === "discoverAllProjects") return false;
+        if (key === "sessionDir") return configDir;
+        return defaultVal ?? null;
+      }),
     } as any);
 
     mockReaddir.mockImplementation(async (p) => {
@@ -381,7 +395,11 @@ describe("CopilotSessionProvider — accumulative discovery", () => {
     const currentChatDir = path.join(STORAGE_ROOT, CURRENT_HASH, "chatSessions");
 
     vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
-      get: vi.fn().mockReturnValue(configDir),
+      get: vi.fn((key: string, defaultVal?: unknown) => {
+        if (key === "discoverAllProjects") return false;
+        if (key === "sessionDir") return configDir;
+        return defaultVal ?? null;
+      }),
     } as any);
 
     mockReaddir.mockImplementation(async (p) => {
@@ -414,5 +432,208 @@ describe("getPlatformStorageRoot", () => {
       const result = getPlatformStorageRoot();
       expect(result).toContain("Library/Application Support/Code/User/workspaceStorage");
     }
+  });
+});
+
+describe("CopilotSessionProvider — global discovery (discoverAllProjects)", () => {
+  beforeEach(() => {
+    vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+      get: vi.fn((key: string, defaultVal?: unknown) => {
+        if (key === "discoverAllProjects") return true;
+        return defaultVal ?? null;
+      }),
+    } as any);
+  });
+
+  it("discovers sessions from all workspace storage hash dirs", async () => {
+    const hash1 = "aaaa1111";
+    const hash2 = "bbbb2222";
+    const chat1 = path.join(STORAGE_ROOT, hash1, "chatSessions");
+    const chat2 = path.join(STORAGE_ROOT, hash2, "chatSessions");
+
+    mockReaddir.mockImplementation(async (p) => {
+      const ps = String(p).replace(/\\/g, "/");
+      if (ps === STORAGE_ROOT) return [hash1, hash2] as any;
+      if (ps === chat1.replace(/\\/g, "/")) return ["session-a.jsonl"] as any;
+      if (ps === chat2.replace(/\\/g, "/")) return ["session-b.jsonl"] as any;
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    mockReadFile.mockImplementation(async (p) => {
+      const ps = String(p).replace(/\\/g, "/");
+      if (ps.endsWith("workspace.json") && ps.includes(hash1)) {
+        return JSON.stringify({ folder: `file:///workspaces/${WORKSPACE_NAME}` });
+      }
+      if (ps.endsWith("workspace.json") && ps.includes(hash2)) {
+        return JSON.stringify({ folder: "file:///workspaces/other-project" });
+      }
+      if (ps.endsWith("session-a.jsonl")) return minimalSession("session-a");
+      if (ps.endsWith("session-b.jsonl")) return minimalSession("session-b");
+      throw new Error("ENOENT");
+    });
+
+    const provider = new CopilotSessionProvider();
+    const sessions = await provider.discoverSessions(makeCtx());
+
+    expect(sessions).toHaveLength(2);
+    const ids = sessions.map((s) => s.sessionId).sort();
+    expect(ids).toEqual(["session-a", "session-b"]);
+
+    const currentSession = sessions.find((s) => s.sessionId === "session-a");
+    expect(currentSession?.projectName).toBe(WORKSPACE_NAME);
+    expect(currentSession?.isCurrentWorkspace).toBe(true);
+
+    const otherSession = sessions.find((s) => s.sessionId === "session-b");
+    expect(otherSession?.projectName).toBe("other-project");
+    expect(otherSession?.isCurrentWorkspace).toBe(false);
+  });
+
+  it("falls back to workspace-only discovery when setting is false", async () => {
+    vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+      get: vi.fn((key: string, defaultVal?: unknown) => {
+        if (key === "discoverAllProjects") return false;
+        return defaultVal ?? null;
+      }),
+    } as any);
+
+    const currentChatDir = path.join(STORAGE_ROOT, CURRENT_HASH, "chatSessions");
+
+    mockReaddir.mockImplementation(async (p) => {
+      const ps = String(p).replace(/\\/g, "/");
+      if (ps === currentChatDir.replace(/\\/g, "/")) return ["session-abc.jsonl"] as any;
+      if (ps === STORAGE_ROOT) return [CURRENT_HASH] as any;
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    mockReadFile.mockImplementation(async (p) => {
+      const ps = String(p);
+      if (ps.endsWith("workspace.json")) return JSON.stringify({ folder: WORKSPACE_URI });
+      if (ps.endsWith("session-abc.jsonl")) return minimalSession("session-abc");
+      throw new Error("ENOENT");
+    });
+
+    const provider = new CopilotSessionProvider();
+    const sessions = await provider.discoverSessions(makeCtx());
+
+    // Should still work with existing behavior
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].sessionId).toBe("session-abc");
+  });
+});
+
+describe("CopilotSessionProvider — session file cache", () => {
+  it("skips readFile on second call when mtime is unchanged (cache hit)", async () => {
+    const chatDir = path.join(STORAGE_ROOT, CURRENT_HASH, "chatSessions");
+    const sessionFile = path.join(chatDir, "session-cached.jsonl");
+
+    mockReaddir.mockImplementation(async (p) => {
+      if (String(p) === chatDir) return ["session-cached.jsonl"] as any;
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    mockReadFile.mockImplementation(async (p) => {
+      const ps = String(p);
+      if (ps.endsWith("workspace.json")) return JSON.stringify({ folder: WORKSPACE_URI });
+      if (ps.endsWith("session-cached.jsonl")) return minimalSession("session-cached");
+      throw new Error("ENOENT");
+    });
+    // Return a stable mtime for the session file
+    mockStat.mockImplementation(async (p) => {
+      if (String(p) === sessionFile) return { mtimeMs: 1000 } as any;
+      return { mtimeMs: Date.now() } as any;
+    });
+
+    const provider = new CopilotSessionProvider();
+
+    // First call — cache miss, reads the file
+    await provider.discoverSessions(makeCtx());
+    const readFileCallsAfterFirst = mockReadFile.mock.calls.filter(
+      (c) => String(c[0]).endsWith("session-cached.jsonl"),
+    ).length;
+    expect(readFileCallsAfterFirst).toBe(1);
+
+    // Second call — cache hit, should NOT read the file again
+    const sessions = await provider.discoverSessions(makeCtx());
+    const readFileCallsAfterSecond = mockReadFile.mock.calls.filter(
+      (c) => String(c[0]).endsWith("session-cached.jsonl"),
+    ).length;
+    expect(readFileCallsAfterSecond).toBe(1); // still 1, not 2
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].sessionId).toBe("session-cached");
+  });
+
+  it("re-reads file when mtime changes (cache invalidation)", async () => {
+    const chatDir = path.join(STORAGE_ROOT, CURRENT_HASH, "chatSessions");
+    const sessionFile = path.join(chatDir, "session-inv.jsonl");
+
+    mockReaddir.mockImplementation(async (p) => {
+      if (String(p) === chatDir) return ["session-inv.jsonl"] as any;
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    mockReadFile.mockImplementation(async (p) => {
+      const ps = String(p);
+      if (ps.endsWith("workspace.json")) return JSON.stringify({ folder: WORKSPACE_URI });
+      if (ps.endsWith("session-inv.jsonl")) return minimalSession("session-inv");
+      throw new Error("ENOENT");
+    });
+
+    let mtime = 1000;
+    mockStat.mockImplementation(async (p) => {
+      if (String(p) === sessionFile) return { mtimeMs: mtime } as any;
+      return { mtimeMs: Date.now() } as any;
+    });
+
+    const provider = new CopilotSessionProvider();
+
+    // First call
+    await provider.discoverSessions(makeCtx());
+
+    // Change mtime to simulate file modification
+    mtime = 2000;
+
+    // Second call — cache invalidated, should re-read
+    await provider.discoverSessions(makeCtx());
+    const readFileCalls = mockReadFile.mock.calls.filter(
+      (c) => String(c[0]).endsWith("session-inv.jsonl"),
+    ).length;
+    expect(readFileCalls).toBe(2);
+  });
+
+  it("prunes stale cache entries when files are deleted", async () => {
+    const chatDir = path.join(STORAGE_ROOT, CURRENT_HASH, "chatSessions");
+
+    mockReadFile.mockImplementation(async (p) => {
+      const ps = String(p);
+      if (ps.endsWith("workspace.json")) return JSON.stringify({ folder: WORKSPACE_URI });
+      if (ps.endsWith("session-keep.jsonl")) return minimalSession("session-keep");
+      if (ps.endsWith("session-gone.jsonl")) return minimalSession("session-gone");
+      throw new Error("ENOENT");
+    });
+    mockStat.mockImplementation(async () => ({ mtimeMs: 1000 }) as any);
+
+    const provider = new CopilotSessionProvider();
+
+    // First call: two files present
+    mockReaddir.mockImplementation(async (p) => {
+      if (String(p) === chatDir) return ["session-keep.jsonl", "session-gone.jsonl"] as any;
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    const first = await provider.discoverSessions(makeCtx());
+    expect(first).toHaveLength(2);
+
+    // Second call: one file removed
+    mockReaddir.mockImplementation(async (p) => {
+      if (String(p) === chatDir) return ["session-keep.jsonl"] as any;
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    const second = await provider.discoverSessions(makeCtx());
+    expect(second).toHaveLength(1);
+    expect(second[0].sessionId).toBe("session-keep");
+
+    // The removed file should not appear even if readdir somehow includes it again
+    // (verify cache was pruned, not that the old cached session leaks back)
+    mockReaddir.mockImplementation(async (p) => {
+      if (String(p) === chatDir) return ["session-keep.jsonl"] as any;
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    const third = await provider.discoverSessions(makeCtx());
+    expect(third).toHaveLength(1);
   });
 });
