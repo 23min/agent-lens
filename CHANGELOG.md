@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Claude session cache: subagent file changes now invalidate the cache (previously only main session file mtime was checked)
 - Global mode: custom `claudeDir` is now watched for changes (previously only `~/.claude/projects/` was watched)
 - `discoverAllProjects` setting description narrowed to reflect that Codex sessions are always discovered
+- Session Timeline: custom agents on the main track (not spawned as subagents) now correctly render in teal instead of the default main color
 
 ## [0.1.1] - 2026-03-02
 

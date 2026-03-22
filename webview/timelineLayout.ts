@@ -225,15 +225,16 @@ export function computeTimelineLayout(
   const agentTypeToColor = new Map<string, string>();
   let customColorIdx = 0;
   let builtinColorIdx = 0;
-  for (const [, group] of subagentGroups) {
-    const label = group[0].customAgentName ?? group[0].agentId;
+  // Scan all requests (not just subagents) so main-track custom agents get a color too
+  for (const r of requests) {
+    const label = r.customAgentName ?? r.agentId;
     if (!agentTypeToColor.has(label)) {
       if (label === "compact") {
         agentTypeToColor.set(label, COMPACT_COLOR);
       } else if (customNameSet.has(label.toLowerCase())) {
         agentTypeToColor.set(label, CUSTOM_COLORS[customColorIdx % CUSTOM_COLORS.length]);
         customColorIdx++;
-      } else {
+      } else if (r.isSubagent === true && r.subagentId !== undefined) {
         agentTypeToColor.set(label, BUILTIN_COLORS[builtinColorIdx % BUILTIN_COLORS.length]);
         builtinColorIdx++;
       }
@@ -278,12 +279,8 @@ export function computeTimelineLayout(
     const label = r.customAgentName ?? r.agentId;
     // compact → coral regardless of track
     if (label === "compact") return COMPACT_COLOR;
-    // Subagent: use assigned color from step 5
-    if (r.isSubagent === true && r.subagentId !== undefined) {
-      return agentTypeToColor.get(label) ?? MAIN_COLOR;
-    }
-    // Non-subagent: main color
-    return MAIN_COLOR;
+    // Use assigned color from step 5 (covers both subagents and main-track custom agents)
+    return agentTypeToColor.get(label) ?? MAIN_COLOR;
   };
 
   // 7. Sort requests per track (by timestamp) for gap-based width calculation

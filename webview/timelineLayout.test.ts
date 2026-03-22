@@ -559,6 +559,34 @@ describe("case-insensitive custom agent matching", () => {
     const subBar = byId.get("sub1")!;
     expect(TEAL_COLORS).toContain(subBar.color);
   });
+
+  it("assigns teal color to custom agents on the main track (not subagents)", () => {
+    const TEAL_COLORS = ["#5eead4", "#2dd4bf", "#14b8a6", "#0d9488", "#0f766e"];
+
+    const result = computeTimelineLayout({
+      requests: [
+        makeReq({
+          requestId: "r1",
+          timestamp: 1000,
+          customAgentName: "planner",
+        }),
+        makeReq({
+          requestId: "r2",
+          timestamp: 2000,
+          customAgentName: "planner",
+        }),
+      ],
+      viewWidth: 800,
+      customAgentNames: ["Planner"],
+    });
+
+    const byId = new Map(result.bars.map((b) => [b.requestId, b]));
+    // Main-track requests with a custom agent name should get teal, not amber
+    expect(TEAL_COLORS).toContain(byId.get("r1")!.color);
+    expect(TEAL_COLORS).toContain(byId.get("r2")!.color);
+    // Both should have the same color (same agent type)
+    expect(byId.get("r1")!.color).toBe(byId.get("r2")!.color);
+  });
 });
 
 // ---------------------------------------------------------------------------
