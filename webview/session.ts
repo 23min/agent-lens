@@ -483,6 +483,7 @@ class SessionExplorer extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener("message", this.handleMessage);
+    vscode.postMessage({ type: "ready" });
   }
 
   disconnectedCallback(): void {
@@ -706,11 +707,7 @@ class SessionExplorer extends LitElement {
     // Check if we have project metadata (global discovery is active)
     const hasProjects = sorted.some((s) => s.projectName);
 
-    // Apply scope filter
-    const filtered =
-      hasProjects && this.scopeFilter === "current-project"
-        ? sorted.filter((s) => s.isCurrentWorkspace)
-        : sorted;
+    const filtered = sorted;
 
     const filterOptions: { value: SourceFilter; label: string }[] = [
       { value: "all", label: "All" },

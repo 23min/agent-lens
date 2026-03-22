@@ -96,7 +96,7 @@
         "agentLens.discoverAllProjects": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Discover sessions from **all** projects across Claude, Copilot, and Codex — not just the current workspace. Disable to show only sessions for the open workspace."
+          "markdownDescription": "Discover sessions from **all** projects across Claude and Copilot — not just the current workspace. Disable to show only sessions for the open workspace. Codex sessions are always discovered from the default location."
         }
       }
     },

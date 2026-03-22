@@ -28,6 +28,7 @@ function yieldEventLoop(): Promise<void> {
 
 interface ClaudeCacheEntry {
   mtimeMs: number;
+  subagentMtimes: Map<string, number>;
   session: Session;
 }
 
@@ -115,20 +116,45 @@ export class ClaudeSessionProvider implements SessionProvider {
         const stats = await fs.stat(entry.fullPath);
         const cached = this.sessionCache.get(entry.fullPath);
         if (cached && cached.mtimeMs === stats.mtimeMs) {
-          // Re-stamp metadata (may change between refreshes)
-          if (entry.projectName) cached.session.projectName = entry.projectName;
-          if (entry.isCurrentWorkspace !== undefined) cached.session.isCurrentWorkspace = entry.isCurrentWorkspace;
-          sessions.push(cached.session);
-          continue;
+          // Also validate subagent mtimes — if any subagent changed, fall through to re-parse
+          const cachedSubPaths = new Set(cached.subagentMtimes.keys());
+          const currentSubPaths = new Set(entry.subagentPaths);
+          let subagentsUnchanged =
+            cachedSubPaths.size === currentSubPaths.size &&
+            [...currentSubPaths].every((p) => cachedSubPaths.has(p));
+          if (subagentsUnchanged) {
+            for (const subPath of entry.subagentPaths) {
+              try {
+                const subStats = await fs.stat(subPath);
+                if (subStats.mtimeMs !== cached.subagentMtimes.get(subPath)) {
+                  subagentsUnchanged = false;
+                  break;
+                }
+              } catch {
+                subagentsUnchanged = false;
+                break;
+              }
+            }
+          }
+          if (subagentsUnchanged) {
+            // Re-stamp metadata (may change between refreshes)
+            if (entry.projectName) cached.session.projectName = entry.projectName;
+            if (entry.isCurrentWorkspace !== undefined) cached.session.isCurrentWorkspace = entry.isCurrentWorkspace;
+            sessions.push(cached.session);
+            continue;
+          }
         }
 
         const content = await fs.readFile(entry.fullPath, "utf-8");
         const typeMap = buildSubagentTypeMap(content);
 
+        const subagentMtimes = new Map<string, number>();
         const subagents: SubagentInput[] = [];
         for (const subPath of entry.subagentPaths) {
           try {
             const subContent = await fs.readFile(subPath, "utf-8");
+            const subStats = await fs.stat(subPath);
+            subagentMtimes.set(subPath, subStats.mtimeMs);
             const agentId = path
               .basename(subPath, ".jsonl")
               .replace(/^agent-/, "");
@@ -151,7 +177,7 @@ export class ClaudeSessionProvider implements SessionProvider {
         // Stamp project metadata from the locator entry
         if (entry.projectName) session.projectName = entry.projectName;
         if (entry.isCurrentWorkspace !== undefined) session.isCurrentWorkspace = entry.isCurrentWorkspace;
-        this.sessionCache.set(entry.fullPath, { mtimeMs: stats.mtimeMs, session });
+        this.sessionCache.set(entry.fullPath, { mtimeMs: stats.mtimeMs, subagentMtimes, session });
         sessions.push(session);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -188,6 +214,22 @@ export class ClaudeSessionProvider implements SessionProvider {
           events: ["create", "change"],
         },
       );
+
+      // Also watch user-configured claudeDir if set
+      const configDir = vscode.workspace
+        .getConfiguration("agentLens")
+        .get<string>("claudeDir");
+      if (configDir) {
+        targets.push(
+          {
+            pattern: new vscode.RelativePattern(
+              vscode.Uri.file(configDir),
+              "**/*.jsonl",
+            ),
+            events: ["create", "change"],
+          },
+        );
+      }
     } else {
       // Workspace-only mode: existing behavior
 

@@ -25,6 +25,9 @@ export class SessionPanel {
     });
 
     this.panel.webview.onDidReceiveMessage((msg) => {
+      if (msg.type === "ready") {
+        this.pushFilteredSessions();
+      }
       if (msg.type === "filter-change") {
         this.currentFilter = msg.provider;
         this.pushFilteredSessions();
@@ -84,7 +87,7 @@ export class SessionPanel {
             (s) => s.provider === this.currentFilter,
           );
     if (this.currentScope === "current-project") {
-      filtered = filtered.filter((s) => s.isCurrentWorkspace !== false);
+      filtered = filtered.filter((s) => s.isCurrentWorkspace === true);
     }
     const nonEmpty = filtered.filter((s) => s.requests.length > 0);
     const emptyCount = filtered.length - nonEmpty.length;
