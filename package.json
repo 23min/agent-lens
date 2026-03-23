@@ -2,7 +2,7 @@
   "name": "agent-lens",
   "displayName": "Agent Lens",
   "description": "Visualize your AI coding agents, skills, and handoffs as an interactive graph. Parses chat sessions to surface usage metrics.",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "publisher": "Proliminal",
   "license": "MIT",
   "icon": "assets/icon_128.png",

@@ -26,7 +26,7 @@ Agent Lens answers these questions by parsing your local session data and presen
 
 ### Metrics Dashboard
 
-See token usage, model distribution, agent activity, tool calls, and skill usage at a glance. Filter by provider (Copilot, Claude, Codex, or all), narrow by time scope (All time, Today, Last hour), or drill into a single session with the session picker. Spot unused agents and skills that might need attention.
+See token usage, model distribution, agent activity, tool calls, and skill usage at a glance. Filter by provider (Copilot, Claude, Codex, or all), narrow by time scope (All time, Today, Last hour), scope to a project (All projects, Current project, or a named project), or drill into a single session with the session picker. Spot unused agents and skills that might need attention.
 
 ### Agent & Skill Explorer
 

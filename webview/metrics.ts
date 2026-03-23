@@ -20,6 +20,8 @@ interface SessionMeta {
   creationDate: number;
   lastActivity: number;
   provider: string;
+  projectName?: string;
+  isCurrentWorkspace?: boolean;
 }
 
 interface CountEntry {
@@ -84,8 +86,14 @@ class MetricsDashboard extends LitElement {
     }
     h1 {
       font-size: 20px;
-      margin: 0 0 20px;
+      margin: 0;
       font-weight: 500;
+    }
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
     }
     h2 {
       font-size: 14px;
@@ -268,11 +276,13 @@ class MetricsDashboard extends LitElement {
     .toolbar {
       display: flex;
       align-items: center;
-      gap: 12px;
+      flex-wrap: wrap;
+      gap: 8px 12px;
       margin-bottom: 16px;
     }
     .filter-toggle {
       display: inline-flex;
+      flex-shrink: 0;
       border: 1px solid var(--vscode-editorWidget-border, #454545);
       border-radius: 4px;
       overflow: hidden;
@@ -310,7 +320,7 @@ class MetricsDashboard extends LitElement {
       font-family: inherit;
       cursor: pointer;
       opacity: 0.7;
-      max-width: 220px;
+      max-width: 180px;
     }
     .session-select option {
       background: var(--vscode-dropdown-background, #3c3c3c);
@@ -322,6 +332,10 @@ class MetricsDashboard extends LitElement {
       border-color: var(--vscode-focusBorder, #007fd4);
     }
     .filter-toggle.inactive {
+      opacity: 0.3;
+      pointer-events: none;
+    }
+    .session-select.inactive {
       opacity: 0.3;
       pointer-events: none;
     }
@@ -403,6 +417,7 @@ class MetricsDashboard extends LitElement {
   @state() private emptyCount = 0;
   @state() private activeFilter: SourceFilter = "all";
   @state() private activeScope: TimeScope = "all";
+  @state() private activeProject: string | null = null;
   @state() private activeSession: string | null = null;
   @state() private sessions: SessionMeta[] = [];
   @state() private guideOpen = false;
@@ -429,6 +444,7 @@ class MetricsDashboard extends LitElement {
       this.emptyCount = e.data.emptyCount ?? 0;
       if (e.data.activeFilter) this.activeFilter = e.data.activeFilter;
       if (e.data.activeScope) this.activeScope = e.data.activeScope;
+      if ("activeProject" in e.data) this.activeProject = e.data.activeProject;
       if ("activeSession" in e.data) this.activeSession = e.data.activeSession;
       if (e.data.sessions) this.sessions = e.data.sessions;
     }
@@ -442,6 +458,14 @@ class MetricsDashboard extends LitElement {
   private onScopeChange(scope: TimeScope): void {
     this.activeScope = scope;
     vscode.postMessage({ type: "scope-change", scope });
+  }
+
+  private onProjectChange(e: Event): void {
+    const value = (e.target as HTMLSelectElement).value;
+    const project = value === "" ? null : value;
+    this.activeProject = project;
+    this.activeSession = null;
+    vscode.postMessage({ type: "project-change", project });
   }
 
   private onSessionChange(e: Event): void {
@@ -766,11 +790,38 @@ class MetricsDashboard extends LitElement {
     const sessionActive = this.activeSession !== null;
     const providerLabel = (p: string) =>
       p === "copilot" ? "Copilot" : p === "claude" ? "Claude" : "Codex";
-    const sortedSessions = [...this.sessions].sort(
+
+    // Derive unique project names, current workspace first
+    const projectSet = new Set<string>();
+    let hasCurrentProject = false;
+    for (const s of this.sessions) {
+      if (s.projectName) projectSet.add(s.projectName);
+      if (s.isCurrentWorkspace) hasCurrentProject = true;
+    }
+    const projectNames = [...projectSet].sort((a, b) => a.localeCompare(b));
+    const hasProjects = projectNames.length > 0;
+
+    // Scope session list to selected project
+    const projectSessions = this.activeProject !== null
+      ? this.sessions.filter((s) => (s.projectName ?? "Other") === this.activeProject)
+      : this.sessions;
+    const sortedSessions = [...projectSessions].sort(
       (a, b) => b.lastActivity - a.lastActivity,
     );
 
     return html`
+      <div class="header-row">
+        <h1>Agent Lens Metrics</h1>
+        <div class="token-guide">
+          <button
+            class="guide-toggle"
+            @click="${() => { this.guideOpen = !this.guideOpen; }}"
+          >
+            ${this.guideOpen ? "Hide" : "Show"} Token Guide
+          </button>
+        </div>
+      </div>
+      ${this.guideOpen ? this.renderTokenGuide() : null}
       <div class="toolbar">
         <div class="filter-toggle ${sessionActive ? "inactive" : ""}">
           ${filterOptions.map(
@@ -796,6 +847,18 @@ class MetricsDashboard extends LitElement {
             `,
           )}
         </div>
+        ${hasProjects ? html`
+          <select
+            class="session-select ${sessionActive ? "inactive" : ""}"
+            .value="${this.activeProject ?? ""}"
+            @change="${this.onProjectChange}"
+            ?disabled="${sessionActive}"
+          >
+            <option value="">All projects</option>
+            ${hasCurrentProject ? html`<option value="__current__">Current project</option>` : null}
+            ${projectNames.map((p) => html`<option value="${p}">${p}</option>`)}
+          </select>
+        ` : null}
         <select
           class="session-select"
           .value="${this.activeSession ?? ""}"
@@ -808,17 +871,7 @@ class MetricsDashboard extends LitElement {
             </option>
           `)}
         </select>
-        <div class="token-guide">
-          <button
-            class="guide-toggle"
-            @click="${() => { this.guideOpen = !this.guideOpen; }}"
-          >
-            ${this.guideOpen ? "Hide" : "Show"} Token Guide
-          </button>
-        </div>
       </div>
-      ${this.guideOpen ? this.renderTokenGuide() : null}
-      <h1>Agent Lens Metrics</h1>
 
       <div class="stats-grid">
         <div class="stat-card" title="Total number of chat sessions with at least 1 request">

@@ -13,6 +13,7 @@ export class MetricsPanel {
 
   private currentFilter: SourceFilter = "all";
   private currentScope: TimeScope = "all";
+  private currentProject: string | null = null;
   private currentSessionId: string | null = null;
   private cachedSessions: Session[] = [];
   private cachedAgents: DefinedItem[] = [];
@@ -35,6 +36,10 @@ export class MetricsPanel {
         this.pushFilteredMetrics();
       } else if (msg.type === "scope-change") {
         this.currentScope = msg.scope as TimeScope;
+        this.pushFilteredMetrics();
+      } else if (msg.type === "project-change") {
+        this.currentProject = msg.project ?? null;
+        this.currentSessionId = null;
         this.pushFilteredMetrics();
       } else if (msg.type === "session-change") {
         this.currentSessionId = msg.sessionId ?? null;
@@ -118,10 +123,17 @@ export class MetricsPanel {
             )
           : byProvider;
 
+    const byProject =
+      this.currentProject === "__current__"
+        ? byScope.filter((s) => s.isCurrentWorkspace === true)
+        : this.currentProject !== null
+          ? byScope.filter((s) => (s.projectName ?? "Other") === this.currentProject)
+          : byScope;
+
     const bySession =
       this.currentSessionId !== null
-        ? byScope.filter((s) => s.sessionId === this.currentSessionId)
-        : byScope;
+        ? byProject.filter((s) => s.sessionId === this.currentSessionId)
+        : byProject;
 
     const nonEmpty = bySession.filter((s) => s.requests.length > 0);
     const emptyCount = bySession.length - nonEmpty.length;
@@ -147,6 +159,8 @@ export class MetricsPanel {
       creationDate: s.creationDate,
       lastActivity: this.sessionLastActivity(s),
       provider: s.provider,
+      projectName: s.projectName,
+      isCurrentWorkspace: s.isCurrentWorkspace,
     }));
 
     this.panel.webview.postMessage({
@@ -154,6 +168,7 @@ export class MetricsPanel {
       metrics,
       activeFilter: this.currentFilter,
       activeScope: this.currentScope,
+      activeProject: this.currentProject,
       activeSession: this.currentSessionId,
       sessions: sessionMeta,
       emptyCount,
