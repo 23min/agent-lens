@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-03-23
+
 ### Added
 - Cross-project session discovery: browse sessions from **all** Claude and Copilot projects — not just the current workspace. Sessions grouped by project name with "(current)" marker for the active workspace.
 - `agentLens.discoverAllProjects` setting (default: `true`) — toggle between all-projects and current-workspace-only discovery
