@@ -10,10 +10,12 @@ Open issues, ordered by priority. Issues within the same tier can be worked in a
 
 | Priority | Issue | Title | Dependencies | Notes |
 |----------|-------|-------|-------------|-------|
-| 1 | [#33](https://github.com/23min/agent-lens/issues/33) | Metrics: cross-workspace analytics with scope toggle | — | `This Workspace \| All Workspaces` toggle. Focuses on AI token/model/tool usage. |
-| 2 | [#34](https://github.com/23min/agent-lens/issues/34) | Session tracing: waterfall visualization | — | Waterfall/flamechart of request execution. New webview panel. Roadmap M11. |
-| 3 | [#21](https://github.com/23min/agent-lens/issues/21) | Improve graph layout algorithm | — | Visual polish. |
-| 4 | [#31](https://github.com/23min/agent-lens/issues/31) | Copilot: use state.vscdb as session index | — | Combine with whichever issue benefits most (likely #33). |
+| 1 | [#69](https://github.com/23min/agent-lens/issues/69) | Metrics Dashboard: project-level selector | — | Project dropdown for aggregated metrics. Builds on global discovery (v0.1.2). |
+| 2 | [#33](https://github.com/23min/agent-lens/issues/33) | Metrics: cross-workspace analytics with scope toggle | #69 | `This Workspace \| All Workspaces` toggle. Focuses on AI token/model/tool usage. |
+| 3 | [#34](https://github.com/23min/agent-lens/issues/34) | Session tracing: waterfall visualization | — | Waterfall/flamechart of request execution. New webview panel. Roadmap M11. |
+| 4 | [#66](https://github.com/23min/agent-lens/issues/66) | Improve drawing of MCP events | — | Visual polish for MCP event rendering. |
+| 5 | [#21](https://github.com/23min/agent-lens/issues/21) | Improve graph layout algorithm | — | Visual polish. |
+| 6 | [#31](https://github.com/23min/agent-lens/issues/31) | Copilot: use state.vscdb as session index | — | Combine with whichever issue benefits most (likely #33). |
 
 ### Completed Milestones
 

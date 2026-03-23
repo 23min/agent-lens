@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-03-23
+
+### Added
+- Metrics Dashboard: project selector — filter metrics by project (All projects, Current project, or a named project). Complements the existing session picker: selecting a project scopes the session list, and the session picker dims when a project filter is active.
+- Metrics Dashboard: `projectName` and `isCurrentWorkspace` fields passed to the webview so the project selector can group and label sessions correctly.
+- Metrics Dashboard: filter bar wraps cleanly on narrow panels (`flex-wrap`) and the session select shrinks to `max-width: 180px` to avoid overflow.
+- Metrics Dashboard: session select gains an `inactive` CSS class (opacity 0.3, pointer-events none) while a specific session is already active via the session picker.
+
+### Changed
+- Metrics Dashboard: removed the separate Token Guide toggle button from the filter bar (guide rendering was already conditional on `guideOpen`; the button was redundant).
+
 ## [0.1.2] - 2026-03-23
 
 ### Added
