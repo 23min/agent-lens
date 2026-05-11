@@ -25,7 +25,7 @@ Larger feature initiatives driven by recent Claude Code and Copilot developments
 
 | Epic | Title | Effort | Summary |
 |------|-------|--------|---------|
-| E4 | Session Naming from Slug & Named Sessions | S | Use Claude's `slug` field and `--name` for human-readable session titles |
+| E4 | Session Naming from Slug & Named Sessions | S | Partially done (summary+first-message fallback shipped). Remaining: slug parsing + `--name` support for cross-continuation identity. |
 | E3 | Compaction & Context Management Events | M | Visualize `compact_boundary` records as timeline markers with token pressure |
 | E1 | Copilot CLI Session Discovery & Parsing | L | New provider for `~/.copilot/session-state/` (standalone CLI agent sessions) |
 | E5 | Claude Code Hook for Real-Time Refresh | M | `SessionEnd`/`SubagentStop` hooks trigger targeted refresh via URI handler |

@@ -131,6 +131,8 @@ Claude Code sessions now have a `slug` field (e.g., "zesty-singing-newell") that
 - **In:** Claude session naming, Copilot/Codex session naming improvements if applicable
 - **Out:** Renaming sessions from within Agent Lens
 
+**Status:** Partially done. The original user-visible problem (GUIDs in the session picker, issue #58) was already resolved by using the `summary` field from `sessions-index.json` with a first-user-message fallback (`claudeSessionParser.ts:316-323`). Remaining work in this epic — slug parsing and explicit `--name` support — is an enhancement, not a fix, and provides cross-continuation identity (same slug persists across resumed sessions).
+
 ### Issues
 
 | # | Title | Type | Description |
