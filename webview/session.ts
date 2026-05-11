@@ -479,6 +479,9 @@ class SessionExplorer extends LitElement {
   @state() private selectedSession: Session | null = null;
   @state() private selectedRequest: SessionRequest | null = null;
   @state() private customAgentNames: string[] = [];
+  @state() private hasProjectMetadata = false;
+  @state() private isScanning = false;
+  @state() private hasReceivedFirstUpdate = false;
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -492,7 +495,11 @@ class SessionExplorer extends LitElement {
   }
 
   private handleMessage = (e: MessageEvent): void => {
+    if (e.data.type === "scan-state") {
+      this.isScanning = e.data.state === "scanning";
+    }
     if (e.data.type === "update-sessions") {
+      this.hasReceivedFirstUpdate = true;
       this.sessions = e.data.sessions;
       this.emptyCount = e.data.emptyCount ?? 0;
       if (e.data.activeFilter) {
@@ -500,6 +507,9 @@ class SessionExplorer extends LitElement {
       }
       if (e.data.customAgentNames) {
         this.customAgentNames = e.data.customAgentNames;
+      }
+      if (typeof e.data.hasProjectMetadata === "boolean") {
+        this.hasProjectMetadata = e.data.hasProjectMetadata;
       }
 
       // Keep the selected session/request in sync with fresh data
@@ -704,8 +714,10 @@ class SessionExplorer extends LitElement {
       (a, b) => b.creationDate - a.creationDate,
     );
 
-    // Check if we have project metadata (global discovery is active)
-    const hasProjects = sorted.some((s) => s.projectName);
+    // Check if we have project metadata (global discovery is active).
+    // Use the unfiltered flag from the extension so the scope toggle stays
+    // visible even when the current-project filter yields zero results.
+    const hasProjects = this.hasProjectMetadata;
 
     const filtered = sorted;
 
@@ -758,8 +770,9 @@ class SessionExplorer extends LitElement {
       <h1>Session Explorer</h1>
       ${filtered.length === 0
         ? html`<div class="empty-state">
-            No sessions found. Sessions are auto-discovered from VS Code
-            workspace storage.
+            ${this.isScanning || !this.hasReceivedFirstUpdate
+              ? "Scanning sessions…"
+              : "No sessions found. Sessions are auto-discovered from VS Code workspace storage."}
           </div>`
         : groups
           ? this.renderGroupedSessions(groups)

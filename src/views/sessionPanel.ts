@@ -5,6 +5,7 @@ type SourceFilter = SessionProviderType | "all";
 
 export class SessionPanel {
   private static instance: SessionPanel | undefined;
+  private static currentScanState: "scanning" | "idle" = "idle";
   private readonly panel: vscode.WebviewPanel;
   private disposed = false;
 
@@ -69,6 +70,12 @@ export class SessionPanel {
     panel.webview.html = instance.getHtml(panel.webview);
     instance.updateSessions(sessions, customAgentNames);
 
+    // If a scan is already in flight when the panel opens, push that state
+    // immediately so the webview never shows a false "No sessions found" banner.
+    if (SessionPanel.currentScanState === "scanning") {
+      panel.webview.postMessage({ type: "scan-state", state: "scanning" });
+    }
+
     return instance;
   }
 
@@ -91,18 +98,30 @@ export class SessionPanel {
     }
     const nonEmpty = filtered.filter((s) => s.requests.length > 0);
     const emptyCount = filtered.length - nonEmpty.length;
+    const hasProjectMetadata = this.cachedSessions.some((s) => !!s.projectName);
     this.panel.webview.postMessage({
       type: "update-sessions",
       sessions: nonEmpty,
       activeFilter: this.currentFilter,
       emptyCount,
       customAgentNames: this.customAgentNames,
+      hasProjectMetadata,
     });
   }
 
   static updateIfOpen(sessions: Session[], customAgentNames?: string[]): void {
     if (SessionPanel.instance && !SessionPanel.instance.disposed) {
       SessionPanel.instance.updateSessions(sessions, customAgentNames);
+    }
+  }
+
+  static notifyScanState(state: "scanning" | "idle"): void {
+    SessionPanel.currentScanState = state;
+    if (SessionPanel.instance && !SessionPanel.instance.disposed) {
+      SessionPanel.instance.panel.webview.postMessage({
+        type: "scan-state",
+        state,
+      });
     }
   }
 

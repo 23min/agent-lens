@@ -26,7 +26,11 @@ export interface ClaudeSessionEntry {
  * `/Users/peterbru/project` → `-Users-peterbru-project`
  */
 export function encodeProjectPath(workspacePath: string): string {
-  return workspacePath.replace(/[/\\]+$/, "").replace(/:/g, "-").replace(/[/\\]/g, "-");
+  return workspacePath
+    .replace(/[/\\]+$/, "")
+    .replace(/:/g, "-")
+    .replace(/[/\\]/g, "-")
+    .replace(/\./g, "-");
 }
 
 /**

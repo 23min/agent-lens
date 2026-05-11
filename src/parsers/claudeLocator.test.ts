@@ -31,6 +31,24 @@ describe("encodeProjectPath", () => {
   it("strips trailing backslash", () => {
     expect(encodeProjectPath("C:\\Users\\foo\\")).toBe("C--Users-foo");
   });
+
+  it("encodes dots in directory names as dashes", () => {
+    expect(encodeProjectPath("/Users/peterbru/Projects/proliminal.net")).toBe(
+      "-Users-peterbru-Projects-proliminal-net",
+    );
+  });
+
+  it("encodes hidden dot-prefixed directory as double dash", () => {
+    expect(
+      encodeProjectPath("/Users/peterbru/Projects/foo/.claude/worktrees/x"),
+    ).toBe("-Users-peterbru-Projects-foo--claude-worktrees-x");
+  });
+
+  it("encodes multiple dots in a single segment", () => {
+    expect(encodeProjectPath("/Users/peterbru/Projects/site.example.com")).toBe(
+      "-Users-peterbru-Projects-site-example-com",
+    );
+  });
 });
 
 describe("encodedPathVariants", () => {

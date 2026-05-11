@@ -26,22 +26,18 @@ let cachedAgents: Agent[] = [];
 let cachedSkills: Skill[] = [];
 let cachedSessions: Session[] = [];
 
-let refreshing = false;
+let inFlightRefresh: Promise<void> | null = null;
 let refreshQueued = false;
 
-async function refresh(
+async function doRefresh(
   sessionCtx: SessionDiscoveryContext,
   treeProvider: AgentLensTreeProvider,
 ): Promise<void> {
-  if (refreshing) {
-    refreshQueued = true;
-    return;
-  }
-  refreshing = true;
-
   const log = getLogger();
   const start = Date.now();
   log.debug("Refresh started");
+
+  SessionPanel.notifyScanState("scanning");
 
   try {
     const [agents, skills, sessions] = await Promise.all([
@@ -88,11 +84,36 @@ async function refresh(
     const msg = err instanceof Error ? err.message : String(err);
     log.error(`Refresh failed: ${msg}`);
   } finally {
-    refreshing = false;
+    SessionPanel.notifyScanState("idle");
+  }
+}
+
+async function refresh(
+  sessionCtx: SessionDiscoveryContext,
+  treeProvider: AgentLensTreeProvider,
+): Promise<void> {
+  if (inFlightRefresh) {
+    refreshQueued = true;
+    // Wait for the in-flight scan to finish so callers (including the progress
+    // UI) actually wait rather than returning immediately.
+    await inFlightRefresh;
     if (refreshQueued) {
+      // Someone else already requeued — they will trigger the next round.
       refreshQueued = false;
-      void refresh(sessionCtx, treeProvider);
     }
+    return;
+  }
+
+  inFlightRefresh = doRefresh(sessionCtx, treeProvider);
+  try {
+    await inFlightRefresh;
+  } finally {
+    inFlightRefresh = null;
+  }
+
+  if (refreshQueued) {
+    refreshQueued = false;
+    void refresh(sessionCtx, treeProvider);
   }
 }
 
