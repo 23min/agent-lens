@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Session titles no longer display `<local-command-caveat>` boilerplate — the caveat tag and `isMeta: true` user records are now filtered out before deriving titles from user text.
 - `/clear`-continued sessions now show the real follow-up prompt as the title rather than `/clear`.
+- Session Explorer: the "All Projects / Current Project" scope toggle no longer disappears when the current-project filter returns zero sessions, so the user can always switch back to all projects.
+- Session Explorer: workspace paths containing `.` (e.g. `proliminal.net`) now correctly match Claude Code's encoded directory layout (where dots are converted to dashes), so the "Current Project" filter shows the expected sessions.
+- Session Explorer: while the initial scan is in progress, the panel now shows "Scanning sessions…" instead of a misleading "No sessions found" empty state. The `agentLens.openSession` command also now waits for any in-flight scan to complete before opening the panel, so the progress notification stays visible for the full scan duration.
 
 ### Added
 - Session titles now read `custom-title` and `ai-title` JSONL events written by Claude Code, which cover the majority of sessions. Title priority: `custom-title` → `ai-title` → index summary → first user prompt → slash-command synthesis → null.
