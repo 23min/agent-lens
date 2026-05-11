@@ -17,6 +17,21 @@ Open issues, ordered by priority. Issues within the same tier can be worked in a
 | 5 | [#21](https://github.com/23min/agent-lens/issues/21) | Improve graph layout algorithm | — | Visual polish. |
 | 6 | [#31](https://github.com/23min/agent-lens/issues/31) | Copilot: use state.vscdb as session index | — | Combine with whichever issue benefits most (likely #33). |
 
+---
+
+## Epics
+
+Larger feature initiatives driven by recent Claude Code and Copilot developments (March 2026). Full details in [EPICS.md](EPICS.md). Recommended order: E4 → E3 → E1 → E5 → E6 → E2.
+
+| Epic | Title | Effort | Summary |
+|------|-------|--------|---------|
+| E4 | Session Naming from Slug & Named Sessions | S | Partially done (summary+first-message fallback shipped). Remaining: slug parsing + `--name` support for cross-continuation identity. |
+| E3 | Compaction & Context Management Events | M | Visualize `compact_boundary` records as timeline markers with token pressure |
+| E1 | Copilot CLI Session Discovery & Parsing | L | New provider for `~/.copilot/session-state/` (standalone CLI agent sessions) |
+| E5 | Claude Code Hook for Real-Time Refresh | M | `SessionEnd`/`SubagentStop` hooks trigger targeted refresh via URI handler |
+| E6 | Claude Agent SDK as Parsing Backend | M | `listSessions()`/`getSessionMessages()` as stable alternative to JSONL parsing |
+| E2 | Claude Code OpenTelemetry Integration | L | Consume native OTEL events for tool durations, costs, error tracking |
+
 ### Completed Milestones
 
 M0 (Setup), M1 (Parsers), M2 (Graph Model), M3 (Tree View), M4 (Graph Webview), M5 (Session Parser), M6 (Metrics Dashboard), M7 (Session Explorer), M8 (Tool Visibility: subagent + MCP parsing), M9 (Claude Agent Discovery), M10 (Codex Support), M11 (Hash Instability Mitigation), M12 (Multi-Source Discovery + Custom Agent Highlighting) — all shipped as of v0.0.16. M13 (Metrics Time-Scope Toggle + Session Picker + Session Explorer Badges + Warning Suppression) — shipped in v0.0.17.
