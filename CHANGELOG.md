@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Session titles no longer display `<local-command-caveat>` boilerplate — the caveat tag and `isMeta: true` user records are now filtered out before deriving titles from user text.
+- `/clear`-continued sessions now show the real follow-up prompt as the title rather than `/clear`.
+
+### Added
+- Session titles now read `custom-title` and `ai-title` JSONL events written by Claude Code, which cover the majority of sessions. Title priority: `custom-title` → `ai-title` → index summary → first user prompt → slash-command synthesis → null.
+- Slash-command sessions with no free-text prompt (e.g. `/effort foo bar`) now synthesize a title from the `<command-name>` and `<command-args>` tags. `/clear` and `/exit` are intentionally suppressed so the follow-up prompt can serve as the title instead.
+
 ## [0.2.0] - 2026-03-23
 
 ### Added

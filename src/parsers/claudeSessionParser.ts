@@ -10,7 +10,12 @@ interface ClaudeLine {
   uuid?: string;
   parentUuid?: string | null;
   isSidechain?: boolean;
+  isMeta?: boolean;
   timestamp?: string;
+  /** Present on custom-title events */
+  customTitle?: string;
+  /** Present on ai-title events */
+  aiTitle?: string;
   message?: {
     role?: string;
     model?: string;
@@ -137,8 +142,30 @@ function isSystemTag(text: string): boolean {
     trimmed.startsWith("<system-") ||
     trimmed.startsWith("<command-") ||
     trimmed.startsWith("<environment_") ||
-    trimmed.startsWith("<user-prompt-submit-hook")
+    trimmed.startsWith("<user-prompt-submit-hook") ||
+    trimmed.startsWith("<local-command-caveat")
   );
+}
+
+/**
+ * Extract slash-command title from the raw text of a user record.
+ * Returns "/commandname args" when a <command-name> block is present,
+ * or null if none found. Skips /clear and /exit (continuation signals).
+ */
+function extractSlashCommandTitle(text: string): string | null {
+  const nameMatch = text.match(/<command-name>([\s\S]*?)<\/command-name>/);
+  if (!nameMatch) return null;
+
+  // Strip a leading slash if present in the tag content — we'll re-add it.
+  const rawName = nameMatch[1].trim();
+  const name = rawName.startsWith("/") ? rawName.slice(1) : rawName;
+
+  // Skip continuation/termination commands
+  if (name === "clear" || name === "exit") return null;
+
+  const argsMatch = text.match(/<command-args>([\s\S]*?)<\/command-args>/);
+  const args = argsMatch ? argsMatch[1].trim() : "";
+  return args ? `/${name} ${args}` : `/${name}`;
 }
 
 function extractToolResultText(block: ContentBlock): string {
@@ -184,6 +211,9 @@ export async function parseClaudeSessionJsonl(
   let firstTimestamp = 0;
   let lastUserText = "";
   let firstUserText: string | null = null;
+  let customTitle: string | null = null;
+  let aiTitle: string | null = null;
+  let slashCommandSynth: string | null = null;
   const requests: SessionRequest[] = [];
 
   for (let i = 0; i < lines.length; i++) {
@@ -209,6 +239,14 @@ export async function parseClaudeSessionJsonl(
       firstTimestamp = new Date(parsed.timestamp).getTime();
     }
 
+    // Capture custom-title and ai-title events (last occurrence wins)
+    if (parsed.type === "custom-title" && parsed.customTitle) {
+      customTitle = parsed.customTitle;
+    }
+    if (parsed.type === "ai-title" && parsed.aiTitle) {
+      aiTitle = parsed.aiTitle;
+    }
+
     // Track latest user message text (filter out system-injected tags)
     if (parsed.type === "user" && !parsed.isSidechain && parsed.message?.content) {
       const content = parsed.message.content;
@@ -222,7 +260,8 @@ export async function parseClaudeSessionJsonl(
           lastUserText = textBlocks.map((b) => b.text).join("\n");
         }
       }
-      if (firstUserText === null) {
+      // Skip isMeta records for title derivation — they are system-injected boilerplate
+      if (!parsed.isMeta && firstUserText === null) {
         // For title derivation, filter out system-injected text blocks
         // (e.g. <ide_opened_file>, <ide_selection>, <system-reminder>)
         let titleCandidate: string | undefined;
@@ -243,6 +282,19 @@ export async function parseClaudeSessionJsonl(
         }
         if (titleCandidate) {
           firstUserText = titleCandidate;
+        }
+      }
+      // Attempt slash-command title synthesis from the first non-sidechain user record
+      // (regardless of isMeta) when we haven't found a real user text yet.
+      if (slashCommandSynth === null) {
+        const rawText = typeof content === "string"
+          ? content
+          : Array.isArray(content)
+            ? content.filter((b) => b.type === "text" && b.text).map((b) => b.text!).join("\n")
+            : "";
+        const synth = extractSlashCommandTitle(rawText);
+        if (synth !== null) {
+          slashCommandSynth = synth;
         }
       }
     }
@@ -313,13 +365,29 @@ export async function parseClaudeSessionJsonl(
     requests.sort((a, b) => a.timestamp - b.timestamp);
   }
 
-  // Derive title: prefer summary from index, fall back to first user message
-  let title: string | null = summary;
-  if (!title && firstUserText) {
+  // Derive title using priority chain:
+  // customTitle \u2192 aiTitle \u2192 summary \u2192 firstUserText \u2192 slashCommandSynth \u2192 null
+  // customTitle, aiTitle, and summary are pre-curated \u2014 pass through verbatim.
+  // Free-text branches (firstUserText, slashCommandSynth) are truncated at 80 chars.
+  let title: string | null;
+  if (customTitle !== null) {
+    title = customTitle;
+  } else if (aiTitle !== null) {
+    title = aiTitle;
+  } else if (summary !== null) {
+    title = summary;
+  } else if (firstUserText !== null) {
     title =
       firstUserText.length > 80
         ? firstUserText.slice(0, 80) + "\u2026"
         : firstUserText;
+  } else if (slashCommandSynth !== null) {
+    title =
+      slashCommandSynth.length > 80
+        ? slashCommandSynth.slice(0, 80) + "\u2026"
+        : slashCommandSynth;
+  } else {
+    title = null;
   }
 
   return {
