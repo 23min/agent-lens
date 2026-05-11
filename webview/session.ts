@@ -479,6 +479,7 @@ class SessionExplorer extends LitElement {
   @state() private selectedSession: Session | null = null;
   @state() private selectedRequest: SessionRequest | null = null;
   @state() private customAgentNames: string[] = [];
+  @state() private hasProjectMetadata = false;
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -500,6 +501,9 @@ class SessionExplorer extends LitElement {
       }
       if (e.data.customAgentNames) {
         this.customAgentNames = e.data.customAgentNames;
+      }
+      if (typeof e.data.hasProjectMetadata === "boolean") {
+        this.hasProjectMetadata = e.data.hasProjectMetadata;
       }
 
       // Keep the selected session/request in sync with fresh data
@@ -704,8 +708,10 @@ class SessionExplorer extends LitElement {
       (a, b) => b.creationDate - a.creationDate,
     );
 
-    // Check if we have project metadata (global discovery is active)
-    const hasProjects = sorted.some((s) => s.projectName);
+    // Check if we have project metadata (global discovery is active).
+    // Use the unfiltered flag from the extension so the scope toggle stays
+    // visible even when the current-project filter yields zero results.
+    const hasProjects = this.hasProjectMetadata;
 
     const filtered = sorted;
 

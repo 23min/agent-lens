@@ -91,12 +91,14 @@ export class SessionPanel {
     }
     const nonEmpty = filtered.filter((s) => s.requests.length > 0);
     const emptyCount = filtered.length - nonEmpty.length;
+    const hasProjectMetadata = this.cachedSessions.some((s) => !!s.projectName);
     this.panel.webview.postMessage({
       type: "update-sessions",
       sessions: nonEmpty,
       activeFilter: this.currentFilter,
       emptyCount,
       customAgentNames: this.customAgentNames,
+      hasProjectMetadata,
     });
   }
 
